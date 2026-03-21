@@ -259,17 +259,6 @@ document.getElementById("pw-input").addEventListener("keydown", e => {
   if(e.key === "Enter") doLogin();
 });
 
-// On load: warn if no hash exists yet
-window.addEventListener("load", () => {
-  if(!localStorage.getItem(PW_KEY)){
-    const err = document.getElementById("pw-err");
-    err.style.color = "var(--orange)";
-    err.innerHTML = '⚠ No password set yet — <a href="/" style="color:var(--amber)">open main app first</a> to create one.';
-    document.getElementById("pw-input").style.display = "none";
-    document.querySelector(".pw-btn").style.display = "none";
-  }
-});
-
 /* ════════════════════════════════════════════════════════════════
    VALIDATION
 ════════════════════════════════════════════════════════════════ */
@@ -285,7 +274,7 @@ function showValBox(type, html){
   const el = document.getElementById("val-box");
   el.className = "val-box " + type;
   el.innerHTML = html;
-  el.style.display = "";
+  el.style.display = "block";
 }
 
 function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -303,7 +292,7 @@ function validateJSON(){
     showValBox("err","✕ Invalid JSON syntax — " + e.message);
     document.getElementById("preview-wrap").style.display = "none";
     document.getElementById("import-section").style.display = "none";
-    document.getElementById("import-placeholder").style.display = "";
+    document.getElementById("import-placeholder").style.display = "block";
     return;
   }
 
@@ -356,7 +345,7 @@ function validateJSON(){
     showValBox("err", "✕ " + errors.length + " error(s) found — fix before importing:<br><br>" + errors.map(e=>"• "+esc(e)).join("<br>"));
     document.getElementById("preview-wrap").style.display = "none";
     document.getElementById("import-section").style.display = "none";
-    document.getElementById("import-placeholder").style.display = "";
+    document.getElementById("import-placeholder").style.display = "block";
     return;
   }
 
@@ -370,7 +359,7 @@ function validateJSON(){
   buildPreview(parsed);
 
   // show import section
-  document.getElementById("import-section").style.display = "";
+  document.getElementById("import-section").style.display = "block";
   document.getElementById("import-placeholder").style.display = "none";
 
   // reset import state
@@ -399,7 +388,7 @@ function buildPreview(data){
       <td title="${esc(content)}">${esc(content.substring(0,60))}${content.length>60?"…":""}</td>
     </tr>`;
   }).join("");
-  wrap.style.display = "";
+  wrap.style.display = "block";
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -423,7 +412,7 @@ function clearAll(){
   document.getElementById("val-box").style.display = "none";
   document.getElementById("preview-wrap").style.display = "none";
   document.getElementById("import-section").style.display = "none";
-  document.getElementById("import-placeholder").style.display = "";
+  document.getElementById("import-placeholder").style.display = "block";
   document.getElementById("done-box").style.display = "none";
   document.getElementById("log-wrap").style.display = "none";
   validatedData = null;
@@ -454,9 +443,9 @@ async function runImport(){
   btn.disabled = true;
   btn.textContent = "Importing…";
 
-  document.getElementById("progress-wrap").style.display = "";
+  document.getElementById("progress-wrap").style.display = "block";
   document.getElementById("done-box").style.display = "none";
-  document.getElementById("log-wrap").style.display = "";
+  document.getElementById("log-wrap").style.display = "block";
   document.getElementById("log-area").innerHTML = "";
 
   const total = validatedData.length;
@@ -501,7 +490,7 @@ async function runImport(){
   // done
   btn.textContent = "✓ Done";
   const doneEl = document.getElementById("done-box");
-  doneEl.style.display = "";
+  doneEl.style.display = "block";
   doneEl.innerHTML = `
     ✓ Import complete.<br>
     ${imported} entr${imported===1?"y":"ies"} imported to Firestore.<br>
