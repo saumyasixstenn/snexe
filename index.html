@@ -518,7 +518,10 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
       </div>
       <div class="form-row">
         <label class="form-lbl">TAGS (optional — narrows further)</label>
-        <div class="form-chips" id="pf-tag-chips"></div>
+        <input type="text" id="pf-tag-search" class="form-input" placeholder="search tags…"
+          oninput="buildPfTagChips()" autocomplete="off" style="margin-bottom:8px;font-family:var(--mono);font-size:12px">
+        <div class="form-chips" id="pf-tag-chips" style="max-height:100px;overflow-y:auto;flex-wrap:wrap"></div>
+        <div id="pf-active-tags" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div>
       </div>
       <div class="form-row">
         <label class="form-lbl">DIFFICULTY</label>
@@ -855,6 +858,7 @@ const S={
   diff:"all",
   type:"all",
   search:"",
+  _tagSearch:"",
   userEntries:[],
   userEdits:{},       // id → patch
   ratings:{},         // id → "got"|"partial"|"missed"
@@ -903,6 +907,22 @@ function getTagsForModule(mod){ // kept for any legacy refs
 function getGlobalTags(){
   const ct=S.customTags;
   return (ct.added||[]).filter(t=>!(ct.removed||[]).includes(t)).sort();
+}
+
+// Collect all unique tags actually used on entries — for a given module (or all)
+// Excludes module keys and submodule names so only meaningful tags surface
+function getAllEntryTags(moduleFilter){
+  const excludeKeys=new Set([
+    ...Object.keys(MOD_LABELS),
+    ...Object.values(MOD_SUBS).flat(),
+    "my-note","edited"
+  ]);
+  const tagSet=new Set();
+  getAll().forEach(e=>{
+    if(moduleFilter&&moduleFilter!=="all"&&e.module!==moduleFilter) return;
+    e.tags.forEach(t=>{if(!excludeKeys.has(t)) tagSet.add(t);});
+  });
+  return [...tagSet].sort();
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1039,7 +1059,7 @@ function buildModChips(){
     const b=document.createElement("button");
     b.className="chip"+(k===S.module?" active":"");
     b.textContent=v;
-    b.onclick=()=>{S.module=k;S.subs=new Set(["all"]);S.tags=new Set(["all"]);renderAll();};
+    b.onclick=()=>{S.module=k;S.subs=new Set(["all"]);S.tags=new Set(["all"]);S._tagSearch="";renderAll();};
     el.appendChild(b);
   });
 }
@@ -1069,8 +1089,27 @@ function buildSubChips(){
 
 function buildTagChips(){
   const el=document.getElementById("tag-chips");
-  const tags=getGlobalTags();
+  // get all tags from actual entries for current module
+  const allTags=getAllEntryTags(S.module);
+  const q=(S._tagSearch||"").toLowerCase();
+  const tags=q?allTags.filter(t=>t.includes(q)):allTags;
+
   el.innerHTML="";
+
+  // search input
+  const wrap=document.createElement("div");
+  wrap.style.cssText="display:flex;align-items:center;gap:6px;flex-shrink:0";
+  const inp=document.createElement("input");
+  inp.type="text";
+  inp.value=S._tagSearch||"";
+  inp.placeholder="search tags…";
+  inp.style.cssText="padding:2px 8px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:11px;outline:none;width:110px;transition:border .15s";
+  inp.oninput=()=>{S._tagSearch=inp.value;buildTagChips();};
+  inp.onfocus=()=>{inp.style.borderColor="var(--amber)";};
+  inp.onblur=()=>{inp.style.borderColor="";};
+  wrap.appendChild(inp);
+  el.appendChild(wrap);
+
   const mkChip=(lbl,val)=>{
     const b=document.createElement("button");
     b.className="chip"+(S.tags.has(val)?" active":"");
@@ -1082,13 +1121,12 @@ function buildTagChips(){
         S.tags.has(val)?S.tags.delete(val):S.tags.add(val);
         if(!S.tags.size)S.tags.add("all");
       }
-      buildTagChips();
-      applyFilters();
+      buildTagChips();applyFilters();
     };
     el.appendChild(b);
   };
   mkChip("All","all");
-  tags.forEach(t=>mkChip(t.replace(/-/g," "),t));
+  tags.slice(0,40).forEach(t=>mkChip(t.replace(/-/g," "),t));
 }
 
 
@@ -1143,7 +1181,12 @@ function selFChip(btn,gid){
 
 function buildTagPicker(selectedTags=[]){
   const q=(document.getElementById("f-tag-search")?.value||"").toLowerCase();
-  const tags=getGlobalTags().filter(t=>!q||t.includes(q));
+  // merge manually-added custom tags with tags actually used on entries
+  const mod=document.getElementById("f-module")?.value||S.module;
+  const entryTags=getAllEntryTags(mod);
+  const customTags=getGlobalTags();
+  const merged=[...new Set([...customTags,...entryTags])].sort();
+  const tags=q?merged.filter(t=>t.includes(q)):merged;
   const el=document.getElementById("f-tag-picker");
   el.innerHTML="";
   tags.forEach(t=>{
@@ -1557,6 +1600,7 @@ function getPfDeck(){
 }
 
 function openPreflight(){
+  const si=document.getElementById("pf-tag-search");if(si)si.value="";
   buildPfModChips();buildPfSubChips();buildPfTagChips();updatePfCount();
   document.getElementById("pf-overlay").classList.add("show");
 }
@@ -1607,28 +1651,64 @@ function buildPfSubChips(){
 
 function buildPfTagChips(){
   const el=document.getElementById("pf-tag-chips");
+  const activeEl=document.getElementById("pf-active-tags");
+  const q=(document.getElementById("pf-tag-search")?.value||"").toLowerCase().trim();
+
+  // collect all tags from matching entries
+  const excludeKeys=new Set([
+    ...Object.keys(MOD_LABELS),
+    ...Object.values(MOD_SUBS).flat(),
+    "my-note","edited"
+  ]);
   const tagSet=new Set();
-  const allSubs=Object.values(MOD_SUBS).flat();
   getAll().filter(e=>{
     if(e.type!=="qa"&&e.type!=="both") return false;
     if(PF.module!=="all"&&e.module!==PF.module) return false;
     return true;
-  }).forEach(e=>e.tags.forEach(t=>{
-    if(!Object.keys(MOD_LABELS).includes(t)&&!allSubs.includes(t)) tagSet.add(t);
-  }));
+  }).forEach(e=>e.tags.forEach(t=>{if(!excludeKeys.has(t))tagSet.add(t);}));
+
+  const allTags=[...tagSet].sort();
+  const filtered=q?allTags.filter(t=>t.includes(q)):allTags;
+
+  // show results (max 30 at a time to avoid overwhelm)
   el.innerHTML="";
-  const mk=(lbl,val)=>{
+  filtered.slice(0,30).forEach(t=>{
+    if(PF.tags.has(t)) return; // already selected, shown in active area
     const b=document.createElement("button");
-    b.className="fchip"+(PF.tags.has(val)?" active":"");
-    b.textContent=lbl;
+    b.className="fchip";
+    b.textContent=t.replace(/-/g," ");
     b.onclick=()=>{
-      if(val==="all"){PF.tags=new Set(["all"]);}
-      else{if(PF.tags.has("all"))PF.tags.clear();PF.tags.has(val)?PF.tags.delete(val):PF.tags.add(val);if(!PF.tags.size)PF.tags.add("all");}
+      if(PF.tags.has("all"))PF.tags.clear();
+      PF.tags.add(t);
+      if(document.getElementById("pf-tag-search")) document.getElementById("pf-tag-search").value="";
       buildPfTagChips();updatePfCount();
     };
     el.appendChild(b);
-  };
-  mk("Any tag","all");[...tagSet].sort().forEach(t=>mk(t,t));
+  });
+  if(!filtered.length&&q){
+    el.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:var(--tx3)">no tags match "${q}"</span>`;
+  }
+
+  // active selected tags shown below as removable pills
+  if(activeEl){
+    activeEl.innerHTML="";
+    if(!PF.tags.has("all")){
+      [...PF.tags].forEach(t=>{
+        const b=document.createElement("button");
+        b.className="fchip active";
+        b.style.cssText="display:flex;align-items:center;gap:5px";
+        b.innerHTML=`${esc(t.replace(/-/g," "))} <span style="font-size:10px;opacity:.7">✕</span>`;
+        b.onclick=()=>{
+          PF.tags.delete(t);
+          if(!PF.tags.size)PF.tags.add("all");
+          buildPfTagChips();updatePfCount();
+        };
+        activeEl.appendChild(b);
+      });
+    } else {
+      activeEl.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:var(--tx3)">any tag</span>`;
+    }
+  }
 }
 
 function pfDiff(btn){
