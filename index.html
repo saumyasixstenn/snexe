@@ -161,7 +161,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px
 .tm-tag-item.is-custom{border-color:rgba(240,168,50,.35)}
 .tm-tag-name{font-family:var(--mono);font-size:11px;color:var(--tx2);padding:3px 10px;white-space:nowrap}
 .tm-tag-item.is-custom .tm-tag-name{color:var(--amber)}
-.tm-tag-del{background:none;border:none;border-left:1px solid var(--bdr2);color:var(--tx3);font-size:12px;padding:3px 7px;cursor:pointer;line-height:1;transition:all .15s;white-space:nowrap;font-family:var(--mono)}
+.tm-tag-del{background:none;border:none;border-left:1px solid var(--bdr2);color:var(--tx3);font-size:12px;padding:3px 7px;cursor:pointer;line-height:1;transition:all .15s}
 .tm-tag-del:hover{color:var(--red);background:rgba(239,68,68,.1)}
 .tm-add-row{display:flex;gap:8px;align-items:center}
 .tm-add-input{flex:1;padding:7px 10px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;transition:border .15s}
@@ -364,6 +364,11 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
     <div class="fb-row">
       <div class="fb-sec">
         <span class="fb-lbl">TAGS <button class="fb-gear admin-only" onclick="openManage('tags')" title="Manage tags">⚙</button></span>
+        <input type="text" id="tag-search-input" placeholder="search tags…"
+          style="padding:2px 8px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:11px;outline:none;width:100px;transition:border .15s;flex-shrink:0"
+          oninput="S._tagSearch=this.value;buildTagChips()"
+          onfocus="this.style.borderColor='var(--amber)'"
+          onblur="this.style.borderColor=''">
         <div id="tag-chips"></div>
       </div>
     </div>
@@ -518,7 +523,10 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
       </div>
       <div class="form-row">
         <label class="form-lbl">TAGS (optional — narrows further)</label>
-        <div class="form-chips" id="pf-tag-chips"></div>
+        <input type="text" id="pf-tag-search" class="form-input" placeholder="search tags…"
+          oninput="buildPfTagChips()" autocomplete="off" style="margin-bottom:8px;font-family:var(--mono);font-size:12px">
+        <div class="form-chips" id="pf-tag-chips" style="max-height:100px;overflow-y:auto;flex-wrap:wrap"></div>
+        <div id="pf-active-tags" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div>
       </div>
       <div class="form-row">
         <label class="form-lbl">DIFFICULTY</label>
@@ -855,6 +863,7 @@ const S={
   diff:"all",
   type:"all",
   search:"",
+  _tagSearch:"",
   userEntries:[],
   userEdits:{},       // id → patch
   ratings:{},         // id → "got"|"partial"|"missed"
@@ -903,6 +912,20 @@ function getTagsForModule(mod){ // kept for any legacy refs
 function getGlobalTags(){
   const ct=S.customTags;
   return (ct.added||[]).filter(t=>!(ct.removed||[]).includes(t)).sort();
+}
+
+function getAllEntryTags(moduleFilter){
+  const excludeKeys=new Set([
+    ...Object.keys(MOD_LABELS),
+    ...Object.values(MOD_SUBS).flat(),
+    "my-note","edited"
+  ]);
+  const tagSet=new Set();
+  getAll().forEach(e=>{
+    if(moduleFilter&&moduleFilter!=="all"&&e.module!==moduleFilter) return;
+    e.tags.forEach(t=>{if(!excludeKeys.has(t)) tagSet.add(t);});
+  });
+  return [...tagSet].sort();
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1039,7 +1062,7 @@ function buildModChips(){
     const b=document.createElement("button");
     b.className="chip"+(k===S.module?" active":"");
     b.textContent=v;
-    b.onclick=()=>{S.module=k;S.subs=new Set(["all"]);S.tags=new Set(["all"]);renderAll();};
+    b.onclick=()=>{S.module=k;S.subs=new Set(["all"]);S.tags=new Set(["all"]);S._tagSearch="";const si=document.getElementById("tag-search-input");if(si)si.value="";renderAll();};
     el.appendChild(b);
   });
 }
@@ -1069,7 +1092,9 @@ function buildSubChips(){
 
 function buildTagChips(){
   const el=document.getElementById("tag-chips");
-  const tags=getGlobalTags();
+  const allTags=getAllEntryTags(S.module);
+  const q=(S._tagSearch||"").toLowerCase();
+  const tags=q?allTags.filter(t=>t.includes(q)):allTags;
   el.innerHTML="";
   const mkChip=(lbl,val)=>{
     const b=document.createElement("button");
@@ -1082,13 +1107,12 @@ function buildTagChips(){
         S.tags.has(val)?S.tags.delete(val):S.tags.add(val);
         if(!S.tags.size)S.tags.add("all");
       }
-      buildTagChips();
-      applyFilters();
+      buildTagChips();applyFilters();
     };
     el.appendChild(b);
   };
   mkChip("All","all");
-  tags.forEach(t=>mkChip(t.replace(/-/g," "),t));
+  tags.slice(0,40).forEach(t=>mkChip(t.replace(/-/g," "),t));
 }
 
 
@@ -1143,7 +1167,9 @@ function selFChip(btn,gid){
 
 function buildTagPicker(selectedTags=[]){
   const q=(document.getElementById("f-tag-search")?.value||"").toLowerCase();
-  const tags=getGlobalTags().filter(t=>!q||t.includes(q));
+  const mod=document.getElementById("f-module")?.value||S.module;
+  const merged=[...new Set([...getGlobalTags(),...getAllEntryTags(mod)])].sort();
+  const tags=q?merged.filter(t=>t.includes(q)):merged;
   const el=document.getElementById("f-tag-picker");
   el.innerHTML="";
   tags.forEach(t=>{
@@ -1436,7 +1462,6 @@ function renderManageList(){
     cs.added.forEach(s=>items.push({key:s,label:s.replace(/-/g," "),isCustom:true}));
 
   } else {
-    // tags — custom (amber, deletable from list) + entry-derived (deletable from all entries)
     const ct=S.customTags;
     const customAdded=(ct.added||[]).filter(t=>!(ct.removed||[]).includes(t)).sort();
     const entryTags=getAllEntryTags("all");
@@ -1452,8 +1477,10 @@ function renderManageList(){
   items.forEach(({key,label,isCustom,source})=>{
     const d=document.createElement("div");
     d.className="tm-tag-item"+(isCustom?" is-custom":"");
-    const delTitle=source==="entry"?"Remove from ALL entries":"Remove";
-    d.innerHTML=`<span class="tm-tag-name">${label}</span><button class="tm-tag-del" title="${delTitle}" onclick="manageRemove('${key}')">${source==="entry"?"✕ all":"✕"}</button>`;
+    const delBtn=source==="entry"
+      ?`<button class="tm-tag-del" title="Remove from ALL entries" onclick="manageRemove('${key}')">✕ all</button>`
+      :`<button class="tm-tag-del" title="Remove" onclick="manageRemove('${key}')">✕</button>`;
+    d.innerHTML=`<span class="tm-tag-name">${label}</span>${delBtn}`;
     el.appendChild(d);
   });
 }
@@ -1531,27 +1558,25 @@ async function manageRemove(key){
     return;
   }
 
-  // tags — remove from custom list AND optionally from all entries
+  // tags — remove from custom list + optionally from all entries
   const ct=S.customTags;
-  const isCustom=ct.added.includes(key);
+  const isCustomTag=ct.added.includes(key);
   const affectedEntries=S.userEntries.filter(e=>e.tags&&e.tags.includes(key));
   const entryCount=affectedEntries.length;
 
-  // confirm if it's on entries
   const msg=entryCount>0
-    ?`Remove tag "${key}" from the tag list AND from all ${entryCount} entr${entryCount===1?"y":"ies"} that use it?`
+    ?`Remove tag "${key}" AND strip it from all ${entryCount} entr${entryCount===1?"y":"ies"} that use it?`
     :`Remove tag "${key}"?`;
   if(!confirm(msg)) return;
 
-  // remove from custom list
-  if(isCustom){
+  // remove from custom list if it's there
+  if(isCustomTag){
     ct.added=ct.added.filter(t=>t!==key);
     dbPut("customTags",{id:"__tags__",added:ct.added,removed:ct.removed}).catch(e=>console.warn("db err",e));
   }
 
-  // remove from all in-memory entries and save to Firestore
+  // strip from all entries in memory + Firestore
   if(entryCount>0){
-    showToast(`Removing "${key}" from ${entryCount} entr${entryCount===1?"y":"ies"}…`);
     affectedEntries.forEach(e=>{
       e.tags=e.tags.filter(t=>t!==key);
       dbPut("entries",e).catch(err=>console.warn("db err",err));
@@ -1585,6 +1610,7 @@ function getPfDeck(){
 }
 
 function openPreflight(){
+  const si=document.getElementById("pf-tag-search");if(si)si.value="";
   buildPfModChips();buildPfSubChips();buildPfTagChips();updatePfCount();
   document.getElementById("pf-overlay").classList.add("show");
 }
@@ -1635,28 +1661,45 @@ function buildPfSubChips(){
 
 function buildPfTagChips(){
   const el=document.getElementById("pf-tag-chips");
-  const tagSet=new Set();
-  const allSubs=Object.values(MOD_SUBS).flat();
-  getAll().filter(e=>{
-    if(e.type!=="qa"&&e.type!=="both") return false;
-    if(PF.module!=="all"&&e.module!==PF.module) return false;
-    return true;
-  }).forEach(e=>e.tags.forEach(t=>{
-    if(!Object.keys(MOD_LABELS).includes(t)&&!allSubs.includes(t)) tagSet.add(t);
-  }));
+  const activeEl=document.getElementById("pf-active-tags");
+  const q=(document.getElementById("pf-tag-search")?.value||"").toLowerCase().trim();
+  const allTags=getAllEntryTags(PF.module==="all"?null:PF.module);
+  const filtered=q?allTags.filter(t=>t.includes(q)):allTags;
+
+  // result chips (unselected only, max 30)
   el.innerHTML="";
-  const mk=(lbl,val)=>{
+  filtered.filter(t=>!PF.tags.has(t)).slice(0,30).forEach(t=>{
     const b=document.createElement("button");
-    b.className="fchip"+(PF.tags.has(val)?" active":"");
-    b.textContent=lbl;
+    b.className="fchip";
+    b.textContent=t.replace(/-/g," ");
     b.onclick=()=>{
-      if(val==="all"){PF.tags=new Set(["all"]);}
-      else{if(PF.tags.has("all"))PF.tags.clear();PF.tags.has(val)?PF.tags.delete(val):PF.tags.add(val);if(!PF.tags.size)PF.tags.add("all");}
+      if(PF.tags.has("all"))PF.tags.clear();
+      PF.tags.add(t);
+      const si=document.getElementById("pf-tag-search");if(si)si.value="";
       buildPfTagChips();updatePfCount();
     };
     el.appendChild(b);
-  };
-  mk("Any tag","all");[...tagSet].sort().forEach(t=>mk(t,t));
+  });
+  if(!filtered.length&&q){
+    el.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:var(--tx3)">no tags match</span>`;
+  }
+
+  // active selected tags as removable pills
+  if(activeEl){
+    activeEl.innerHTML="";
+    if(!PF.tags.has("all")){
+      [...PF.tags].forEach(t=>{
+        const b=document.createElement("button");
+        b.className="fchip active";
+        b.style.cssText="display:inline-flex;align-items:center;gap:5px";
+        b.innerHTML=`${esc(t.replace(/-/g," "))} <span style="font-size:10px;opacity:.7">✕</span>`;
+        b.onclick=()=>{PF.tags.delete(t);if(!PF.tags.size)PF.tags.add("all");buildPfTagChips();updatePfCount();};
+        activeEl.appendChild(b);
+      });
+    } else {
+      activeEl.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:var(--tx3)">any tag — search to narrow</span>`;
+    }
+  }
 }
 
 function pfDiff(btn){
