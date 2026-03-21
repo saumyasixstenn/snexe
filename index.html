@@ -6,6 +6,7 @@
 <title>SN Ref v2</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -269,26 +270,39 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
   <div class="login-card">
     <div class="login-logo">SN·REF<sub>v2</sub></div>
 
-    <!-- SETUP MODE (first visit) -->
-    <div id="ls-setup" style="display:none">
-      <div class="login-label">CREATE PASSWORD</div>
-      <input type="password" id="setup-pw" class="login-input" placeholder="choose a password"
-        onkeydown="if(event.key==='Enter')document.getElementById('setup-pw2').focus()">
-      <input type="password" id="setup-pw2" class="login-input" placeholder="confirm password"
-        onkeydown="if(event.key==='Enter')setupPassword()">
-      <div id="setup-err" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:10px;text-align:left"></div>
-      <button onclick="setupPassword()" class="login-btn">Create Password</button>
-      <div class="login-hint">first-time setup</div>
+    <!-- LOADING (while fetching hash from Firestore) -->
+    <div id="ls-loading" style="display:block">
+      <div class="login-label" style="margin-bottom:0;opacity:.5">loading…</div>
     </div>
 
-    <!-- LOGIN MODE (returning visits) -->
-    <div id="ls-login" style="display:none">
+    <!-- NOT CONFIGURED (no reader password set yet — admin needs to set one) -->
+    <div id="ls-not-configured" style="display:none">
+      <div class="login-label">NOT YET OPEN</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--tx3);line-height:1.7;margin-bottom:24px">Access password hasn't been set yet.<br>Sign in as admin to configure it.</div>
+      <div class="login-hint" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px;opacity:1" onclick="showAdminLogin()">admin ↗</div>
+    </div>
+
+    <!-- READER LOGIN -->
+    <div id="ls-reader" style="display:none">
       <div class="login-label">ACCESS</div>
-      <input type="password" id="password" class="login-input" placeholder="enter password"
-        onkeydown="if(event.key==='Enter')checkPassword()">
-      <div id="login-err" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:10px;text-align:left"></div>
-      <button onclick="checkPassword()" class="login-btn">Enter</button>
-      <div class="login-hint">session-locked</div>
+      <input type="password" id="reader-pw-input" class="login-input" placeholder="enter password"
+        onkeydown="if(event.key==='Enter')readerLogin()">
+      <div id="reader-err" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:10px;text-align:left"></div>
+      <button onclick="readerLogin()" class="login-btn">Enter</button>
+      <div class="login-hint" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px" onclick="showAdminLogin()">admin ↗</div>
+    </div>
+
+    <!-- ADMIN LOGIN -->
+    <div id="ls-admin" style="display:none">
+      <div class="login-label">ADMIN</div>
+      <input type="email" id="admin-email-input" class="login-input" placeholder="admin email"
+        onkeydown="if(event.key==='Enter')document.getElementById('admin-pw-input').focus()"
+        style="margin-bottom:10px">
+      <input type="password" id="admin-pw-input" class="login-input" placeholder="admin password"
+        onkeydown="if(event.key==='Enter')adminLogin()">
+      <div id="admin-err" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:10px;text-align:left"></div>
+      <button onclick="adminLogin()" class="login-btn" style="background:var(--teal);color:#111">Sign In as Admin</button>
+      <div class="login-hint" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-top:14px" onclick="showReaderLogin()">← back</div>
     </div>
   </div>
 </div>
@@ -299,14 +313,15 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 <div class="topbar">
   <div class="topbar-inner">
     <div class="logo">SN·REF<sub>v2</sub></div>
+    <span id="role-indicator" style="display:none;font-family:var(--mono);font-size:9px;color:var(--teal);background:rgba(46,196,182,.1);border:1px solid rgba(46,196,182,.25);padding:2px 8px;border-radius:3px;letter-spacing:.08em;flex-shrink:0"></span>
     <div class="search-wrap">
       <span class="search-ico">⌕</span>
       <input type="text" id="search" placeholder="search titles, answers, tags…" oninput="applyFilters()">
     </div>
     <div class="topbar-actions">
-      <a href="import.html" class="tbtn" style="text-decoration:none">⇄ Import</a>
-      <button class="tbtn" onclick="openChangePw()" title="Change password">🔑</button>
-      <button class="tbtn primary" onclick="openAddModal()">+ Add Entry</button>
+      <a href="import.html" class="tbtn admin-only" style="text-decoration:none">⇄ Import</a>
+      <button class="tbtn admin-only" onclick="openChangePw()" title="Change password">🔑</button>
+      <button class="tbtn primary admin-only" onclick="openAddModal()">+ Add Entry</button>
     </div>
   </div>
 </div>
@@ -334,21 +349,21 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
     <!-- Row 2: MODULE -->
     <div class="fb-row">
       <div class="fb-sec">
-        <span class="fb-lbl">MODULE <button class="fb-gear" onclick="openManage('module')" title="Manage modules">⚙</button></span>
+        <span class="fb-lbl">MODULE <button class="fb-gear admin-only" onclick="openManage('module')" title="Manage modules">⚙</button></span>
         <div id="mod-chips"></div>
       </div>
     </div>
     <!-- Row 3: AREA -->
     <div class="fb-row">
       <div class="fb-sec">
-        <span class="fb-lbl">AREA <button class="fb-gear" onclick="openManage('area')" title="Manage areas">⚙</button></span>
+        <span class="fb-lbl">AREA <button class="fb-gear admin-only" onclick="openManage('area')" title="Manage areas">⚙</button></span>
         <div id="sub-chips"></div>
       </div>
     </div>
     <!-- Row 4: TAGS -->
     <div class="fb-row">
       <div class="fb-sec">
-        <span class="fb-lbl">TAGS <button class="fb-gear" onclick="openManage('tags')" title="Manage tags">⚙</button></span>
+        <span class="fb-lbl">TAGS <button class="fb-gear admin-only" onclick="openManage('tags')" title="Manage tags">⚙</button></span>
         <div id="tag-chips"></div>
       </div>
     </div>
@@ -576,28 +591,43 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 <div class="overlay" id="changepw-overlay">
   <div class="modal">
     <div class="modal-hd">
-      <span class="modal-title">🔑 Change Password</span>
+      <span class="modal-title">🔑 Passwords</span>
       <button class="modal-close" onclick="closeOverlay('changepw-overlay')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
-        <label class="form-lbl">CURRENT PASSWORD</label>
-        <input type="password" class="form-input" id="cpw-current" placeholder="current password">
+      <!-- Reader password -->
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--bdr)">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.12em;margin-bottom:14px">READER PASSWORD <span style="color:var(--tx3);font-weight:400">(the one you share)</span></div>
+        <div class="form-row">
+          <label class="form-lbl">NEW READER PASSWORD</label>
+          <input type="password" class="form-input" id="cpw-r-new" placeholder="new reader password">
+        </div>
+        <div class="form-row" style="margin-bottom:10px">
+          <label class="form-lbl">CONFIRM</label>
+          <input type="password" class="form-input" id="cpw-r-confirm" placeholder="confirm new password"
+            onkeydown="if(event.key==='Enter')doChangeReaderPassword()">
+        </div>
+        <div id="cpw-err" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:10px"></div>
+        <button class="btn-save" onclick="doChangeReaderPassword()">Update Reader Password</button>
       </div>
-      <div class="form-row">
-        <label class="form-lbl">NEW PASSWORD</label>
-        <input type="password" class="form-input" id="cpw-new" placeholder="new password">
+      <!-- Admin password -->
+      <div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.12em;margin-bottom:14px">ADMIN PASSWORD <span style="color:var(--tx3);font-weight:400">(your Firebase account)</span></div>
+        <div class="form-row">
+          <label class="form-lbl">NEW ADMIN PASSWORD</label>
+          <input type="password" class="form-input" id="cpw-a-new" placeholder="new admin password">
+        </div>
+        <div class="form-row" style="margin-bottom:10px">
+          <label class="form-lbl">CONFIRM</label>
+          <input type="password" class="form-input" id="cpw-a-confirm" placeholder="confirm new admin password"
+            onkeydown="if(event.key==='Enter')doChangeAdminPassword()">
+        </div>
+        <div id="cpw-admin-err" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:10px"></div>
+        <button class="btn-save" onclick="doChangeAdminPassword()">Update Admin Password</button>
       </div>
-      <div class="form-row">
-        <label class="form-lbl">CONFIRM NEW PASSWORD</label>
-        <input type="password" class="form-input" id="cpw-confirm" placeholder="confirm new password"
-          onkeydown="if(event.key==='Enter')doChangePassword()">
-      </div>
-      <div id="cpw-err" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);margin-top:-6px"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn-cancel" onclick="closeOverlay('changepw-overlay')">Cancel</button>
-      <button class="btn-save" onclick="doChangePassword()">Change Password</button>
+      <button class="btn-cancel" onclick="closeOverlay('changepw-overlay')">Close</button>
     </div>
   </div>
 </div>
@@ -610,69 +640,141 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 
 <script>
 /* ════════════════════════════════════════════════════════════════
-   AUTH  (SHA-256 · localStorage)
+   ROLE
+════════════════════════════════════════════════════════════════ */
+const ROLE={current:null}; // 'admin' | 'reader'
+let READER_HASH=null; // cached from Firestore on load
+
+/* ════════════════════════════════════════════════════════════════
+   AUTH
 ════════════════════════════════════════════════════════════════ */
 async function sha256(str){
   const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-function unlockApp(){
+async function authInit(){
+  try{await firebase.auth().signOut();}catch(e){}
+  // fetch reader hash from Firestore
+  try{
+    const doc=await fdb.collection("settings").doc("__config__").get();
+    READER_HASH=doc.exists?doc.data().readerHash||null:null;
+  }catch(e){READER_HASH=null;}
+  showLoginSection(READER_HASH?"ls-reader":"ls-not-configured");
+}
+
+function showLoginSection(id){
+  ["ls-loading","ls-not-configured","ls-reader","ls-admin"].forEach(s=>{
+    const el=document.getElementById(s);if(el)el.style.display=s===id?"block":"none";
+  });
+}
+function showAdminLogin(){
+  const el=document.getElementById("admin-err");if(el)el.style.display="none";
+  showLoginSection("ls-admin");
+  setTimeout(()=>document.getElementById("admin-email-input").focus(),50);
+}
+function showReaderLogin(){
+  showLoginSection(READER_HASH?"ls-reader":"ls-not-configured");
+}
+
+async function readerLogin(){
+  const input=document.getElementById("reader-pw-input").value;
+  const err=document.getElementById("reader-err");
+  err.style.display="none";
+  if(!input){err.textContent="Enter the access password.";err.style.display="block";return;}
+  if(!READER_HASH){err.textContent="No access password configured yet.";err.style.display="block";return;}
+  if((await sha256(input))===READER_HASH){
+    unlockApp("reader");
+  } else {
+    err.textContent="Wrong password.";
+    err.style.display="block";
+    document.getElementById("reader-pw-input").value="";
+    document.getElementById("reader-pw-input").focus();
+  }
+}
+
+async function adminLogin(){
+  const email=document.getElementById("admin-email-input").value.trim();
+  const pw=document.getElementById("admin-pw-input").value;
+  const err=document.getElementById("admin-err");
+  err.style.display="none";
+  if(!email||!pw){err.textContent="Enter email and password.";err.style.display="block";return;}
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email,pw);
+    unlockApp("admin");
+  }catch(e){
+    const bad=["auth/invalid-credential","auth/wrong-password","auth/user-not-found","auth/invalid-email"];
+    err.textContent=bad.includes(e.code)?"Wrong email or password.":"Sign-in failed — "+e.message;
+    err.style.display="block";
+    document.getElementById("admin-pw-input").value="";
+    document.getElementById("admin-pw-input").focus();
+  }
+}
+
+function unlockApp(role){
+  ROLE.current=role;
+  applyRoleUI(role);
   document.getElementById("login-screen").style.display="none";
   document.getElementById("app").style.display="block";
   init();
 }
 
-async function authInit(){
-  const stored=localStorage.getItem("snref_pwhash");
-  document.getElementById("ls-setup").style.display=stored?"none":"block";
-  document.getElementById("ls-login").style.display=stored?"block":"none";
+function applyRoleUI(role){
+  const isAdmin=role==="admin";
+  document.querySelectorAll(".admin-only").forEach(el=>{
+    el.style.display=isAdmin?"":"none";
+  });
+  const ind=document.getElementById("role-indicator");
+  if(ind){ind.textContent=isAdmin?"ADMIN":"";ind.style.display=isAdmin?"":"none";}
 }
 
-async function setupPassword(){
-  const pw=document.getElementById("setup-pw").value;
-  const pw2=document.getElementById("setup-pw2").value;
-  const err=document.getElementById("setup-err");
-  err.style.display="none";
-  if(!pw){err.textContent="Enter a password.";err.style.display="block";return;}
-  if(pw!==pw2){err.textContent="Passwords don't match.";err.style.display="block";return;}
-  localStorage.setItem("snref_pwhash",await sha256(pw));
-  unlockApp();
-}
-
-async function checkPassword(){
-  const input=document.getElementById("password").value;
-  const err=document.getElementById("login-err");
-  err.style.display="none";
-  if((await sha256(input))===localStorage.getItem("snref_pwhash")){
-    unlockApp();
-  } else {
-    err.textContent="Wrong password.";
-    err.style.display="block";
-    document.getElementById("password").value="";
-    document.getElementById("password").focus();
-  }
-}
-
+/* ── Change passwords (admin-only modal) ── */
 function openChangePw(){
-  ["cpw-current","cpw-new","cpw-confirm"].forEach(id=>document.getElementById(id).value="");
-  const err=document.getElementById("cpw-err");err.style.display="none";
+  ["cpw-r-new","cpw-r-confirm","cpw-a-new","cpw-a-confirm"].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value="";
+  });
+  ["cpw-err","cpw-admin-err"].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.style.display="none";
+  });
   document.getElementById("changepw-overlay").classList.add("show");
 }
 
-async function doChangePassword(){
-  const cur=document.getElementById("cpw-current").value;
-  const nw=document.getElementById("cpw-new").value;
-  const cf=document.getElementById("cpw-confirm").value;
+async function doChangeReaderPassword(){
+  const nw=document.getElementById("cpw-r-new").value;
+  const cf=document.getElementById("cpw-r-confirm").value;
   const err=document.getElementById("cpw-err");
   const show=(msg)=>{err.textContent=msg;err.style.display="block";};
   err.style.display="none";
-  if(!cur||!nw||!cf){show("All fields required.");return;}
-  if(nw!==cf){show("New passwords don't match.");return;}
-  if((await sha256(cur))!==localStorage.getItem("snref_pwhash")){show("Current password is wrong.");return;}
-  localStorage.setItem("snref_pwhash",await sha256(nw));
-  closeOverlay("changepw-overlay");
-  showToast("Password changed ✓");
+  if(!nw||!cf){show("Both fields required.");return;}
+  if(nw.length<4){show("Password must be at least 4 characters.");return;}
+  if(nw!==cf){show("Passwords don't match.");return;}
+  const hash=await sha256(nw);
+  try{
+    await fdb.collection("settings").doc("__config__").set({readerHash:hash},{merge:true});
+    READER_HASH=hash;
+    closeOverlay("changepw-overlay");
+    showToast("Reader password updated ✓");
+  }catch(e){show("Firestore error: "+e.message);}
+}
+
+async function doChangeAdminPassword(){
+  const nw=document.getElementById("cpw-a-new").value;
+  const cf=document.getElementById("cpw-a-confirm").value;
+  const err=document.getElementById("cpw-admin-err");
+  const show=(msg)=>{err.textContent=msg;err.style.display="block";};
+  err.style.display="none";
+  if(!nw||!cf){show("Both fields required.");return;}
+  if(nw!==cf){show("Passwords don't match.");return;}
+  if(nw.length<6){show("Admin password must be at least 6 characters.");return;}
+  try{
+    await firebase.auth().currentUser.updatePassword(nw);
+    closeOverlay("changepw-overlay");
+    showToast("Admin password changed ✓");
+  }catch(e){
+    if(e.code==="auth/requires-recent-login"){
+      show("Session too old — sign out and sign back in first.");
+    }else{show("Error: "+e.message);}
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -902,7 +1004,9 @@ function makeEntry(e){
     ?`<div class="d-def">${hl(e.def||"")}</div>
       ${e.gotcha?`<div class="d-gotcha"><div class="d-gotcha-lbl">⚠ GOTCHA</div>${hl(e.gotcha)}</div>`:""}`
     :"");
-  const delBtn=`<button class="eact" onclick="deleteEntry('${e.id}')">del</button>`;
+  const adminBtns=ROLE.current==="admin"
+    ?`<button class="eact" onclick="openEditModal('${e.id}')">edit</button><button class="eact" onclick="deleteEntry('${e.id}')">del</button>`
+    :"";
 
   return`<div class="entry ${cls}" id="ent-${e.id}">
   <div class="entry-hd" onclick="toggleEntry('${e.id}')">
@@ -910,10 +1014,7 @@ function makeEntry(e){
     <span class="etitle">${hl(title)}</span>
     <div class="etags">${tagHtml}</div>
     <span class="ddot ${e.difficulty}" title="${{B:"Beginner",I:"Intermediate",E:"Expert"}[e.difficulty]}"></span>
-    <div class="eacts" onclick="event.stopPropagation()">
-      <button class="eact" onclick="openEditModal('${e.id}')">edit</button>
-      ${delBtn}
-    </div>
+    <div class="eacts" onclick="event.stopPropagation()">${adminBtns}</div>
     <svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,4 6,8 10,4"/></svg>
   </div>
   <div class="entry-bd">${detailHtml}</div>
@@ -1195,6 +1296,7 @@ function setFChipVal(gid,val){
 }
 
 async function saveEntry(){
+  if(ROLE.current!=="admin"){showToast("Read-only access");return;}
   const id=document.getElementById("edit-id").value;
   const isBuiltIn=BUILT_IN.some(e=>e.id===id);
 
@@ -1261,6 +1363,7 @@ async function saveEntry(){
 }
 
 async function deleteEntry(id){
+  if(ROLE.current!=="admin"){showToast("Read-only access");return;}
   if(!confirm("Delete this entry?"))return;
   const isBuiltIn=BUILT_IN.some(e=>e.id===id);
   if(isBuiltIn){
@@ -1353,6 +1456,7 @@ function renderManageList(){
 }
 
 async function manageAdd(){
+  if(ROLE.current!=="admin"){showToast("Read-only access");return;}
   const raw=document.getElementById("manage-add-input").value;
 
   if(MG.type==="module"){
@@ -1399,6 +1503,7 @@ async function manageAdd(){
 }
 
 async function manageRemove(key){
+  if(ROLE.current!=="admin"){showToast("Read-only access");return;}
   if(MG.type==="module"){
     const cm=S.customModules;
     cm.added=cm.added.filter(m=>m.key!==key);
@@ -1581,7 +1686,11 @@ function fcReveal(){
 async function fcRate(r){
   const e=FC.deck[FC.idx];
   S.ratings[e.id]=r;
-  await dbPut("ratings",{id:e.id,rating:r});
+  if(ROLE.current==="admin"){
+    dbPut("ratings",{id:e.id,rating:r}).catch(e=>console.warn("rating sync err",e));
+  } else {
+    try{localStorage.setItem("snref_ratings",JSON.stringify(S.ratings));}catch(e){}
+  }
   fcNav(1);
 }
 function fcNav(dir){
@@ -1619,7 +1728,12 @@ function showToast(msg){
 async function init(){
   (await dbGetAll("entries")).forEach(e=>{S.userEntries.push(e);});
   (await dbGetAll("edits")).forEach(e=>{S.userEdits[e.id]=e;});
-  (await dbGetAll("ratings")).forEach(r=>{S.ratings[r.id]=r.rating;});
+  // ratings — admin syncs from Firestore, readers use localStorage
+  if(ROLE.current==="admin"){
+    (await dbGetAll("ratings")).forEach(r=>{S.ratings[r.id]=r.rating;});
+  } else {
+    try{const r=localStorage.getItem("snref_ratings");if(r)Object.assign(S.ratings,JSON.parse(r));}catch(e){}
+  }
   // global tags (flat, not per-module)
   const tagsSnap=await dbGetAll("customTags");
   const tRec=tagsSnap.find(t=>t.id==="__tags__");
