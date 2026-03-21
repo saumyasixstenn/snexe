@@ -63,8 +63,12 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px
 
 /* ── MAIN ── */
 .main{max-width:1280px;margin:0 auto;padding:0 24px 100px}
-.sec-hd{padding:18px 0 6px;font-family:var(--display);font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.sec-hd{padding:18px 0 6px;font-family:var(--display);font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.sec-hd:hover{color:var(--tx2)}
 .sec-hd::after{content:'';flex:1;height:1px;background:var(--bdr2)}
+.sec-hd-chev{font-size:9px;color:var(--tx3);transition:transform .2s;flex-shrink:0;margin-left:2px}
+.sec-group.collapsed .sec-hd-chev{transform:rotate(-90deg)}
+.sec-group.collapsed .sec-body{display:none}
 .empty{text-align:center;padding:80px 0;font-family:var(--mono);font-size:12px;color:var(--tx3)}
 
 /* ── ENTRY ── */
@@ -809,7 +813,9 @@ function getAll(){
     const tags=[...new Set([...e.tags,...(p.addedTags||[]),"edited"])].filter(t=>!(p.removedTags||[]).includes(t));
     return {...e,...p,tags,_edited:true};
   });
-  const user=S.userEntries.map(e=>({...e,tags:[...new Set([...e.tags,"my-note"])],_user:true}));
+  const user=S.userEntries.map(e=>e.userNote
+    ?{...e,tags:[...new Set([...e.tags,"my-note"])],_user:true}
+    :{...e,_user:false});
   return [...builtIn,...user];
 }
 
@@ -861,10 +867,17 @@ function renderEntries(){
 
   let html="";
   Object.entries(groups).forEach(([sub,entries])=>{
-    html+=`<div class="sec-hd">${sub.replace(/-/g," ")}</div>`;
+    html+=`<div class="sec-group" id="grp-${sub}">
+  <div class="sec-hd" onclick="toggleGroup('${sub}')">${sub.replace(/-/g," ")}<span class="sec-hd-chev">▾</span></div>
+  <div class="sec-body">`;
     entries.forEach(e=>{html+=makeEntry(e);});
+    html+=`</div></div>`;
   });
   list.innerHTML=html;
+}
+
+function toggleGroup(sub){
+  document.getElementById("grp-"+sub)?.classList.toggle("collapsed");
 }
 
 function makeEntry(e){
@@ -1236,7 +1249,7 @@ async function saveEntry(){
   const now=Date.now();
   BATCH.forEach((item,i)=>{
     const eid=`user-${now}-${i}`;
-    const entry={id:eid,...item};
+    const entry={id:eid,...item,userNote:true};
     S.userEntries.push(entry);
     dbPut("entries",entry).catch(e=>console.warn("db err",e));
   });
