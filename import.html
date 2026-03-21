@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SN Ref — Import</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#111113;--bg2:#18181b;--bg3:#222228;--bg4:#2a2a32;
+  --bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.13);--bdr3:rgba(255,255,255,.24);
+  --tx:#e8e8f0;--tx2:#9898b0;--tx3:#55556a;
+  --amber:#f0a832;--green:#22c55e;--red:#ef4444;--teal:#2ec4b6;--orange:#f97316;
+  --mono:'Fira Code',monospace;--sans:'DM Sans',sans-serif;
+  --r:8px;--r-sm:5px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px 80px}
+
+/* ── LOGIN ── */
+.login-card{background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r);width:100%;max-width:340px;padding:36px 28px;box-shadow:0 28px 70px rgba(0,0,0,.55);text-align:center;margin-top:10vh}
+.logo{font-family:'Syne',var(--sans);font-size:18px;font-weight:800;color:var(--amber);letter-spacing:.04em;margin-bottom:4px}
+.logo sub{font-size:9px;color:var(--tx3);font-weight:500;margin-left:2px}
+.login-label{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.14em;margin-bottom:22px}
+.pw-input{width:100%;padding:10px 12px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;transition:border .15s;text-align:center;margin-bottom:12px}
+.pw-input:focus{border-color:var(--amber)}
+.pw-input::placeholder{color:var(--tx3)}
+.pw-btn{width:100%;padding:10px;font-size:12px;font-family:var(--mono);font-weight:500;background:var(--amber);color:#111;border:none;border-radius:var(--r-sm);cursor:pointer;transition:opacity .15s}
+.pw-btn:hover{opacity:.84}
+.pw-err{font-family:var(--mono);font-size:10px;color:var(--red);min-height:16px;margin:-6px 0 10px}
+
+/* ── MAIN APP ── */
+.app{width:100%;max-width:720px;display:none;flex-direction:column;gap:24px}
+
+.page-hd{display:flex;align-items:center;gap:12px;padding-bottom:18px;border-bottom:1px solid var(--bdr2)}
+.page-logo{font-family:'Syne',var(--sans);font-size:16px;font-weight:800;color:var(--amber)}
+.page-logo sub{font-size:9px;color:var(--tx3)}
+.page-title{font-family:var(--mono);font-size:11px;color:var(--tx3);letter-spacing:.1em}
+.home-link{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--tx3);text-decoration:none;border:1px solid var(--bdr2);padding:4px 12px;border-radius:var(--r-sm);transition:all .15s}
+.home-link:hover{color:var(--tx);border-color:var(--bdr3)}
+
+.card{background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r);padding:22px}
+.card-title{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.12em;margin-bottom:14px}
+
+/* ── JSON INPUT ── */
+.json-area{width:100%;min-height:220px;padding:12px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx2);font-family:var(--mono);font-size:11px;line-height:1.6;outline:none;resize:vertical;transition:border .15s}
+.json-area:focus{border-color:var(--amber)}
+.json-area::placeholder{color:var(--tx3)}
+
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.upload-btn{padding:7px 14px;font-size:11px;font-family:var(--mono);border:1px solid var(--bdr2);background:transparent;color:var(--tx3);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.upload-btn:hover{color:var(--tx);border-color:var(--bdr3)}
+.validate-btn{padding:7px 16px;font-size:11px;font-family:var(--mono);font-weight:500;border:1px solid var(--teal);color:var(--teal);background:rgba(46,196,182,.07);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.validate-btn:hover{background:rgba(46,196,182,.16)}
+.hint{font-family:var(--mono);font-size:10px;color:var(--tx3);line-height:1.6;margin-top:8px}
+#file-input{display:none}
+
+/* ── VALIDATION RESULT ── */
+.val-box{border-radius:var(--r-sm);padding:12px 14px;font-family:var(--mono);font-size:11px;line-height:1.7;margin-top:14px;display:none}
+.val-box.ok{background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);color:var(--green)}
+.val-box.err{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.25);color:var(--red)}
+.val-box.warn{background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.25);color:var(--orange)}
+
+/* ── PREVIEW TABLE ── */
+.preview-wrap{display:none;margin-top:18px}
+.preview-title{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.12em;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.preview-count{background:var(--amber);color:#111;font-size:9px;font-family:var(--mono);font-weight:700;padding:1px 7px;border-radius:10px}
+.preview-table{width:100%;border-collapse:collapse;font-size:11px}
+.preview-table th{font-family:var(--mono);font-size:8px;color:var(--tx3);letter-spacing:.08em;text-align:left;padding:5px 8px;border-bottom:1px solid var(--bdr2)}
+.preview-table td{padding:5px 8px;border-bottom:1px solid var(--bdr);color:var(--tx2);font-family:var(--mono);font-size:10px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-table tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:8px;font-weight:500;letter-spacing:.04em}
+.badge.B{background:rgba(34,197,94,.15);color:var(--green)}
+.badge.I{background:rgba(240,168,50,.15);color:var(--amber)}
+.badge.qa{background:rgba(240,168,50,.12);color:var(--amber)}
+.badge.ref{background:rgba(167,139,250,.12);color:#a78bfa}
+
+/* ── IMPORT CONTROLS ── */
+.import-section{display:none;margin-top:20px}
+.options-row{display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.opt-label{font-family:var(--mono);font-size:10px;color:var(--tx3);display:flex;align-items:center;gap:6px;cursor:pointer}
+.opt-label input[type=checkbox]{accent-color:var(--amber);width:13px;height:13px}
+.import-btn{padding:10px 28px;font-size:12px;font-family:var(--mono);font-weight:500;background:var(--amber);color:#111;border:none;border-radius:var(--r-sm);cursor:pointer;transition:opacity .15s}
+.import-btn:hover{opacity:.84}
+.import-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── PROGRESS ── */
+.progress-wrap{display:none;margin-top:16px}
+.progress-bar-bg{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.progress-bar{height:100%;background:var(--amber);border-radius:3px;transition:width .2s;width:0%}
+.progress-label{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+
+/* ── DONE ── */
+.done-box{display:none;margin-top:16px;padding:14px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:var(--r-sm);font-family:var(--mono);font-size:11px;color:var(--green);line-height:1.8}
+.done-box a{color:var(--amber);text-decoration:none}
+.done-box a:hover{text-decoration:underline}
+
+/* ── LOG ── */
+.log-wrap{display:none;margin-top:14px}
+.log-title{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-bottom:6px}
+.log-area{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r-sm);padding:10px 12px;font-family:var(--mono);font-size:10px;color:var(--tx3);max-height:160px;overflow-y:auto;line-height:1.7}
+.log-ok{color:var(--green)}
+.log-skip{color:var(--orange)}
+.log-err{color:var(--red)}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-card" id="login-card">
+  <div class="logo">SN·REF<sub>v2</sub></div>
+  <div class="login-label">IMPORT ACCESS</div>
+  <input type="password" id="pw-input" class="pw-input" placeholder="enter password"
+    onkeydown="if(event.key==='Enter')doLogin()">
+  <div class="pw-err" id="pw-err"></div>
+  <button class="pw-btn" onclick="doLogin()">Enter</button>
+</div>
+
+<!-- MAIN APP -->
+<div class="app" id="app">
+
+  <div class="page-hd">
+    <div>
+      <div class="page-logo">SN·REF<sub>v2</sub></div>
+      <div class="page-title">BATCH IMPORTER</div>
+    </div>
+    <a href="/" class="home-link">← Main App</a>
+  </div>
+
+  <div class="card">
+    <div class="card-title">STEP 1 — PASTE OR UPLOAD JSON</div>
+
+    <textarea class="json-area" id="json-input"
+      placeholder='Paste JSON array here, e.g:
+[
+  {
+    "id": "sn-inc-001",
+    "module": "itsm",
+    "submodule": "incident",
+    "type": "qa",
+    "difficulty": "B",
+    "tags": ["itsm","incident"],
+    "q": "What is an Incident?",
+    "a": "An Incident is..."
+  }
+]'></textarea>
+
+    <div class="row">
+      <input type="file" id="file-input" accept=".json" onchange="loadFile(event)">
+      <button class="upload-btn" onclick="document.getElementById('file-input').click()">📂 Load JSON file</button>
+      <button class="validate-btn" onclick="validateJSON()">✓ Validate</button>
+      <button class="upload-btn" onclick="clearAll()">✕ Clear</button>
+    </div>
+
+    <div class="hint">
+      Required fields per entry: <b>id</b>, <b>module</b>, <b>submodule</b>, <b>type</b> (qa/ref/both), <b>difficulty</b> (B/I/E), <b>tags</b> (array).<br>
+      For Q&amp;A: also <b>q</b> and <b>a</b>. For Reference: also <b>title</b> and <b>def</b>.
+    </div>
+
+    <div class="val-box" id="val-box"></div>
+
+    <div class="preview-wrap" id="preview-wrap">
+      <div class="preview-title">PREVIEW <span class="preview-count" id="preview-count">0</span></div>
+      <table class="preview-table">
+        <thead>
+          <tr>
+            <th>ID</th><th>MODULE</th><th>SUBMODULE</th><th>TYPE</th><th>DIFF</th><th>CONTENT</th>
+          </tr>
+        </thead>
+        <tbody id="preview-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">STEP 2 — IMPORT OPTIONS</div>
+
+    <div class="import-section" id="import-section">
+      <div class="options-row">
+        <label class="opt-label">
+          <input type="checkbox" id="opt-skip-existing" checked>
+          Skip entries that already exist in Firestore (safe default)
+        </label>
+      </div>
+      <div class="options-row">
+        <label class="opt-label">
+          <input type="checkbox" id="opt-overwrite">
+          Overwrite existing entries with the same ID
+        </label>
+      </div>
+
+      <button class="import-btn" id="import-btn" onclick="runImport()">⬆ Import to Firestore</button>
+
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-bar-bg"><div class="progress-bar" id="progress-bar"></div></div>
+        <div class="progress-label" id="progress-label">Preparing…</div>
+      </div>
+
+      <div class="done-box" id="done-box"></div>
+
+      <div class="log-wrap" id="log-wrap">
+        <div class="log-title">IMPORT LOG</div>
+        <div class="log-area" id="log-area"></div>
+      </div>
+    </div>
+
+    <div id="import-placeholder" style="font-family:var(--mono);font-size:11px;color:var(--tx3)">
+      Validate your JSON first to enable import.
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   FIREBASE
+════════════════════════════════════════════════════════════════ */
+firebase.initializeApp({
+  apiKey:"AIzaSyDKsRp0Bl3nJi6Q-2S2YvAO2EcxEJBkR9w",
+  authDomain:"servicenowexe.firebaseapp.com",
+  projectId:"servicenowexe",
+  storageBucket:"servicenowexe.firebasestorage.app",
+  messagingSenderId:"773349993182",
+  appId:"1:773349993182:web:197881d04cf8f40ced704f"
+});
+const fdb = firebase.firestore();
+
+/* ════════════════════════════════════════════════════════════════
+   AUTH — same localStorage hash as main app
+════════════════════════════════════════════════════════════════ */
+const PW_KEY = "snref_pwhash";
+
+async function sha256(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+async function doLogin(){
+  const input = document.getElementById("pw-input").value;
+  const errEl = document.getElementById("pw-err");
+  errEl.textContent = "";
+  if(!input){ errEl.textContent = "enter a password"; return; }
+  const stored = localStorage.getItem(PW_KEY);
+  if(!stored){ errEl.textContent = "no password set — open main app first"; return; }
+  const hash = await sha256(input);
+  if(hash === stored){
+    document.getElementById("login-card").style.display = "none";
+    document.getElementById("app").style.display = "flex";
+  } else {
+    errEl.textContent = "wrong password";
+    document.getElementById("pw-input").value = "";
+    document.getElementById("pw-input").focus();
+  }
+}
+
+document.getElementById("pw-input").addEventListener("keydown", e => {
+  if(e.key === "Enter") doLogin();
+});
+
+/* ════════════════════════════════════════════════════════════════
+   VALIDATION
+════════════════════════════════════════════════════════════════ */
+const REQUIRED_ALL   = ["id","module","submodule","type","difficulty","tags"];
+const REQUIRED_QA    = ["q","a"];
+const REQUIRED_REF   = ["title","def"];
+const VALID_TYPES    = ["qa","ref","both"];
+const VALID_DIFFS    = ["B","I","E"];
+
+let validatedData = null;
+
+function showValBox(type, html){
+  const el = document.getElementById("val-box");
+  el.className = "val-box " + type;
+  el.innerHTML = html;
+  el.style.display = "";
+}
+
+function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function validateJSON(){
+  const raw = document.getElementById("json-input").value.trim();
+  validatedData = null;
+
+  if(!raw){ showValBox("err","⚠ Nothing to validate — paste JSON first."); return; }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch(e) {
+    showValBox("err","✕ Invalid JSON syntax — " + e.message);
+    document.getElementById("preview-wrap").style.display = "none";
+    document.getElementById("import-section").style.display = "none";
+    document.getElementById("import-placeholder").style.display = "";
+    return;
+  }
+
+  if(!Array.isArray(parsed)){
+    showValBox("err","✕ JSON must be an array [ ... ] at the top level.");
+    return;
+  }
+
+  const errors = [];
+  const warnings = [];
+  const ids = new Set();
+
+  parsed.forEach((item, i) => {
+    const label = `Entry ${i+1} (${item.id||"no id"})`;
+
+    // required fields
+    REQUIRED_ALL.forEach(f => {
+      if(item[f] === undefined || item[f] === null || item[f] === "")
+        errors.push(`${label}: missing required field "${f}"`);
+    });
+
+    // type-specific fields
+    if(item.type === "qa" || item.type === "both"){
+      REQUIRED_QA.forEach(f => {
+        if(!item[f]) errors.push(`${label}: missing "${f}" (required for type "${item.type}")`);
+      });
+    }
+    if(item.type === "ref" || item.type === "both"){
+      REQUIRED_REF.forEach(f => {
+        if(!item[f]) warnings.push(`${label}: missing "${f}" (expected for type "${item.type}")`);
+      });
+    }
+
+    // valid values
+    if(item.type && !VALID_TYPES.includes(item.type))
+      errors.push(`${label}: type "${item.type}" is invalid — must be qa, ref, or both`);
+    if(item.difficulty && !VALID_DIFFS.includes(item.difficulty))
+      errors.push(`${label}: difficulty "${item.difficulty}" is invalid — must be B, I, or E`);
+    if(item.tags !== undefined && !Array.isArray(item.tags))
+      errors.push(`${label}: tags must be an array`);
+
+    // duplicate IDs
+    if(item.id){
+      if(ids.has(item.id)) errors.push(`${label}: duplicate id "${item.id}" in this file`);
+      ids.add(item.id);
+    }
+  });
+
+  if(errors.length){
+    showValBox("err", "✕ " + errors.length + " error(s) found — fix before importing:<br><br>" + errors.map(e=>"• "+esc(e)).join("<br>"));
+    document.getElementById("preview-wrap").style.display = "none";
+    document.getElementById("import-section").style.display = "none";
+    document.getElementById("import-placeholder").style.display = "";
+    return;
+  }
+
+  validatedData = parsed;
+
+  let msg = "✓ " + parsed.length + " entr" + (parsed.length===1?"y":"ies") + " valid and ready to import.";
+  if(warnings.length) msg += "<br><br>⚠ " + warnings.length + " warning(s):<br>" + warnings.map(w=>"• "+esc(w)).join("<br>");
+  showValBox(warnings.length ? "warn" : "ok", msg);
+
+  // build preview (first 10 rows)
+  buildPreview(parsed);
+
+  // show import section
+  document.getElementById("import-section").style.display = "";
+  document.getElementById("import-placeholder").style.display = "none";
+
+  // reset import state
+  document.getElementById("progress-wrap").style.display = "none";
+  document.getElementById("done-box").style.display = "none";
+  document.getElementById("log-wrap").style.display = "none";
+  document.getElementById("import-btn").disabled = false;
+  document.getElementById("import-btn").textContent = "⬆ Import to Firestore";
+}
+
+function buildPreview(data){
+  const wrap = document.getElementById("preview-wrap");
+  const body = document.getElementById("preview-body");
+  const count = document.getElementById("preview-count");
+
+  const show = data.slice(0, 12);
+  count.textContent = data.length + (data.length > 12 ? " (showing first 12)" : "");
+  body.innerHTML = show.map(e => {
+    const content = e.q || e.title || e.def || "—";
+    return `<tr>
+      <td title="${esc(e.id)}">${esc(e.id)}</td>
+      <td>${esc(e.module)}</td>
+      <td>${esc(e.submodule)}</td>
+      <td><span class="badge ${esc(e.type)}">${esc(e.type).toUpperCase()}</span></td>
+      <td><span class="badge ${esc(e.difficulty)}">${esc(e.difficulty)}</span></td>
+      <td title="${esc(content)}">${esc(content.substring(0,60))}${content.length>60?"…":""}</td>
+    </tr>`;
+  }).join("");
+  wrap.style.display = "";
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FILE LOAD
+════════════════════════════════════════════════════════════════ */
+function loadFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById("json-input").value = e.target.result;
+    validateJSON();
+  };
+  reader.readAsText(file);
+  // reset so same file can be reloaded
+  event.target.value = "";
+}
+
+function clearAll(){
+  document.getElementById("json-input").value = "";
+  document.getElementById("val-box").style.display = "none";
+  document.getElementById("preview-wrap").style.display = "none";
+  document.getElementById("import-section").style.display = "none";
+  document.getElementById("import-placeholder").style.display = "";
+  document.getElementById("done-box").style.display = "none";
+  document.getElementById("log-wrap").style.display = "none";
+  validatedData = null;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IMPORT
+════════════════════════════════════════════════════════════════ */
+function addLog(type, msg){
+  const area = document.getElementById("log-area");
+  const line = document.createElement("div");
+  line.className = "log-" + type;
+  line.textContent = msg;
+  area.appendChild(line);
+  area.scrollTop = area.scrollHeight;
+}
+
+async function runImport(){
+  if(!validatedData || !validatedData.length){
+    alert("Validate your JSON first.");
+    return;
+  }
+
+  const skipExisting  = document.getElementById("opt-skip-existing").checked;
+  const overwrite     = document.getElementById("opt-overwrite").checked;
+
+  const btn = document.getElementById("import-btn");
+  btn.disabled = true;
+  btn.textContent = "Importing…";
+
+  document.getElementById("progress-wrap").style.display = "";
+  document.getElementById("done-box").style.display = "none";
+  document.getElementById("log-wrap").style.display = "";
+  document.getElementById("log-area").innerHTML = "";
+
+  const total = validatedData.length;
+  let imported = 0, skipped = 0, failed = 0;
+
+  const setProgress = (n) => {
+    const pct = Math.round((n / total) * 100);
+    document.getElementById("progress-bar").style.width = pct + "%";
+    document.getElementById("progress-label").textContent = `${n} / ${total} processed — ${imported} imported, ${skipped} skipped, ${failed} failed`;
+  };
+
+  setProgress(0);
+
+  for(let i = 0; i < validatedData.length; i++){
+    const entry = validatedData[i];
+
+    try {
+      if(skipExisting && !overwrite){
+        const existing = await fdb.collection("entries").doc(entry.id).get();
+        if(existing.exists){
+          addLog("skip", `SKIP  ${entry.id} — already exists`);
+          skipped++;
+          setProgress(i + 1);
+          continue;
+        }
+      }
+
+      await fdb.collection("entries").doc(entry.id).set(entry);
+      addLog("ok", `OK    ${entry.id}`);
+      imported++;
+    } catch(e) {
+      addLog("err", `FAIL  ${entry.id} — ${e.message}`);
+      failed++;
+    }
+
+    setProgress(i + 1);
+
+    // small delay every 20 entries to avoid Firestore rate limits
+    if((i + 1) % 20 === 0) await new Promise(r => setTimeout(r, 300));
+  }
+
+  // done
+  btn.textContent = "✓ Done";
+  const doneEl = document.getElementById("done-box");
+  doneEl.style.display = "";
+  doneEl.innerHTML = `
+    ✓ Import complete.<br>
+    ${imported} entr${imported===1?"y":"ies"} imported to Firestore.<br>
+    ${skipped > 0 ? skipped + " skipped (already existed).<br>" : ""}
+    ${failed > 0 ? '<span style="color:var(--red)">' + failed + " failed — see log above.</span><br>" : ""}
+    <br>
+    <a href="/">← Open main app to see your entries</a>
+  `;
+}
+</script>
+</body>
+</html>

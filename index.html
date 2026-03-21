@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SN Ref v2</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#111113;--bg2:#18181b;--bg3:#222228;--bg4:#2a2a32;
+  --bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.13);--bdr3:rgba(255,255,255,.24);
+  --tx:#e8e8f0;--tx2:#9898b0;--tx3:#55556a;
+  --amber:#f0a832;--amber2:#c88a28;
+  --teal:#2ec4b6;--green:#22c55e;--red:#ef4444;--orange:#f97316;--purple:#a78bfa;
+  --mono:'Fira Code',monospace;--sans:'DM Sans',sans-serif;--display:'Syne',sans-serif;
+  --r:8px;--r-sm:5px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--bg2);border-bottom:1px solid var(--bdr2);position:sticky;top:0;z-index:200;padding:0 24px}
+.topbar-inner{max-width:1280px;margin:0 auto;height:52px;display:flex;align-items:center;gap:16px}
+.logo{font-family:var(--display);font-size:16px;font-weight:800;color:var(--amber);letter-spacing:.04em;flex-shrink:0}
+.logo sub{font-size:9px;color:var(--tx3);font-weight:500;margin-left:2px;vertical-align:baseline}
+.search-wrap{position:relative;flex:1;max-width:360px}
+.search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:14px;pointer-events:none;line-height:1}
+#search{width:100%;padding:7px 10px 7px 32px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;transition:border .15s}
+#search:focus{border-color:var(--amber)}
+#search::placeholder{color:var(--tx3)}
+.topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.tbtn{padding:5px 12px;font-size:11px;font-family:var(--mono);font-weight:500;border:1px solid var(--bdr2);background:transparent;color:var(--tx3);border-radius:var(--r-sm);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tbtn:hover{color:var(--tx);border-color:var(--bdr3)}
+.tbtn.primary{border-color:var(--amber);color:var(--amber);background:rgba(240,168,50,.08)}
+.tbtn.primary:hover{background:rgba(240,168,50,.16)}
+
+/* ── FILTERBAR ── */
+.filterbar{background:var(--bg2);border-bottom:1px solid var(--bdr);position:sticky;top:52px;z-index:190}
+.filterbar-inner{max-width:1280px;margin:0 auto;display:flex;flex-direction:column}
+.fb-row{display:flex;align-items:center;gap:6px;padding:5px 12px;border-bottom:1px solid var(--bdr);overflow-x:auto;scrollbar-width:none;white-space:nowrap;flex-wrap:nowrap}
+.fb-row::-webkit-scrollbar{display:none}
+.fb-row:last-child{border-bottom:none}
+.fb-sec{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.fb-lbl{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;flex-shrink:0}
+.chip{padding:3px 10px;border-radius:20px;font-size:11px;font-family:var(--mono);cursor:pointer;border:1px solid var(--bdr2);background:transparent;color:var(--tx3);transition:all .15s;white-space:nowrap;flex-shrink:0}
+.chip:hover{color:var(--tx2);border-color:var(--bdr3)}
+.chip.active{background:var(--amber);border-color:var(--amber);color:#111}
+.chip.diff-B.active{background:var(--green);border-color:var(--green);color:#111}
+.chip.diff-I.active{background:var(--amber);border-color:var(--amber);color:#111}
+.chip.diff-E.active{background:var(--red);border-color:var(--red);color:#fff}
+.chip[data-type="ref"].active{background:var(--purple);border-color:var(--purple);color:#fff}
+.chip[data-type="my-note"].active{background:var(--teal);border-color:var(--teal);color:#111}
+#mod-chips,#sub-chips,#tag-chips{display:flex;gap:6px;flex-shrink:0;flex-wrap:nowrap}
+
+/* ── TOOLBAR ── */
+.toolbar{max-width:1280px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:10px}
+#entry-count{font-family:var(--mono);font-size:11px;color:var(--tx3)}
+.fc-btn-top{margin-left:auto;padding:6px 16px;font-size:11px;font-family:var(--mono);font-weight:500;border:1px solid var(--amber);color:var(--amber);background:rgba(240,168,50,.07);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.fc-btn-top:hover{background:rgba(240,168,50,.16)}
+
+/* ── MAIN ── */
+.main{max-width:1280px;margin:0 auto;padding:0 24px 100px}
+.sec-hd{padding:18px 0 6px;font-family:var(--display);font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.sec-hd::after{content:'';flex:1;height:1px;background:var(--bdr2)}
+.empty{text-align:center;padding:80px 0;font-family:var(--mono);font-size:12px;color:var(--tx3)}
+
+/* ── ENTRY ── */
+.entry{border-bottom:1px solid var(--bdr);position:relative}
+.entry.is-user{border-left:2px solid var(--teal);padding-left:10px}
+.entry.is-edited{border-left:2px solid var(--amber2);padding-left:10px}
+.entry-hd{display:flex;align-items:center;gap:8px;padding:9px 0;cursor:pointer;user-select:none}
+.entry-hd:hover .etitle{color:var(--tx)}
+.tbadge{font-family:var(--mono);font-size:9px;font-weight:500;padding:2px 6px;border-radius:3px;flex-shrink:0;letter-spacing:.05em}
+.tbadge.ref{background:rgba(167,139,250,.15);color:var(--purple)}
+.tbadge.qa{background:rgba(240,168,50,.15);color:var(--amber)}
+.tbadge.my-note{background:rgba(46,196,182,.15);color:var(--teal)}
+.etitle{font-size:13px;font-weight:500;color:var(--tx2);flex:1;transition:color .15s;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
+.etitle mark{background:rgba(240,168,50,.25);color:var(--amber);border-radius:2px;padding:0 2px}
+.etags{display:flex;gap:4px;flex-shrink:0;flex-wrap:nowrap;overflow:hidden}
+.etag{font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg4);color:var(--tx3);white-space:nowrap}
+.etag.is-edited{background:rgba(200,138,40,.14);color:var(--amber2)}
+.etag.is-user{background:rgba(46,196,182,.12);color:var(--teal)}
+.ddot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ddot.B{background:var(--green)}.ddot.I{background:var(--amber)}.ddot.E{background:var(--red)}
+.eacts{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity .15s}
+.entry-hd:hover .eacts{opacity:1}
+.eact{background:none;border:1px solid var(--bdr2);color:var(--tx3);font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.eact:hover{color:var(--tx);border-color:var(--bdr3)}
+.chev{width:12px;height:12px;color:var(--tx3);flex-shrink:0;transition:transform .2s;opacity:.35}
+.entry.open .chev{transform:rotate(180deg);opacity:.65}
+.entry-bd{display:none;padding:2px 0 14px}
+.entry.open .entry-bd{display:block}
+
+/* ── CONTENT ── */
+.d-def{font-size:13px;color:var(--tx2);line-height:1.8;margin-bottom:8px}
+.d-def code{font-family:var(--mono);font-size:11.5px;color:var(--teal);background:rgba(46,196,182,.1);padding:1px 5px;border-radius:3px}
+.d-gotcha{margin-top:8px;padding:9px 12px;border-radius:var(--r-sm);background:rgba(240,168,50,.06);border-left:2px solid var(--amber);font-size:12.5px;color:var(--tx2);line-height:1.65}
+.d-gotcha-lbl{font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:.1em;margin-bottom:5px}
+.d-q{font-size:13.5px;font-weight:500;color:var(--tx);line-height:1.65;margin-bottom:10px;padding:10px 13px;background:var(--bg3);border-radius:var(--r-sm)}
+.d-q mark{background:rgba(240,168,50,.25);color:var(--amber);border-radius:2px;padding:0 2px}
+.d-rating{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;margin-bottom:8px;padding:2px 8px;border-radius:20px}
+.d-rating.got{background:rgba(34,197,94,.12);color:var(--green)}
+.d-rating.partial{background:rgba(249,115,22,.12);color:var(--orange)}
+.d-rating.missed{background:rgba(239,68,68,.12);color:var(--red)}
+.reveal-btn{padding:4px 11px;font-size:11px;font-family:var(--mono);border:1px solid var(--bdr2);background:transparent;color:var(--tx3);border-radius:var(--r-sm);cursor:pointer;transition:all .15s;margin-bottom:8px}
+.reveal-btn:hover{color:var(--tx);border-color:var(--bdr3)}
+.d-ans{display:none;font-size:13px;color:var(--tx2);line-height:1.8}
+.d-ans.show{display:block}
+.d-ans mark{background:rgba(240,168,50,.25);color:var(--amber);border-radius:2px;padding:0 2px}
+
+/* ── OVERLAYS ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:500;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(5px)}
+.overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:540px;max-height:92dvh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,.55)}
+@media(min-width:600px){
+  .overlay{align-items:center}
+  .modal{border-radius:var(--r);max-height:90vh;margin:16px}
+}
+.modal-hd{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--bdr);gap:10px}
+.modal-title{font-family:var(--display);font-size:14px;font-weight:700;color:var(--tx);flex:1}
+.modal-close{background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;line-height:1;padding:2px 5px;border-radius:4px}
+.modal-close:hover{color:var(--tx);background:var(--bg4)}
+.modal-body{padding:20px}
+.form-row{margin-bottom:16px}
+.form-lbl{display:block;font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-bottom:7px}
+.form-input,.form-select,.form-textarea{width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--sans);font-size:13px;outline:none;transition:border .15s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--amber)}
+.form-textarea{resize:vertical;min-height:100px;line-height:1.65}
+.form-select{cursor:pointer}
+.form-chips{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{padding:4px 11px;border-radius:20px;font-size:11px;font-family:var(--mono);cursor:pointer;border:1px solid var(--bdr2);background:transparent;color:var(--tx3);transition:all .15s}
+.fchip:hover{color:var(--tx2);border-color:var(--bdr3)}
+.fchip.active{background:var(--amber);border-color:var(--amber);color:#111}
+.form-hint{font-size:11px;color:var(--tx3);margin-top:5px;line-height:1.5}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end}
+.btn-save{padding:7px 20px;font-size:12px;font-family:var(--mono);font-weight:500;background:var(--amber);color:#111;border:none;border-radius:var(--r-sm);cursor:pointer;transition:opacity .15s}
+.btn-save:hover{opacity:.82}
+.btn-cancel{padding:7px 14px;font-size:12px;font-family:var(--mono);background:transparent;color:var(--tx3);border:1px solid var(--bdr2);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.btn-cancel:hover{color:var(--tx);border-color:var(--bdr3)}
+.edit-note{font-size:11px;font-family:var(--mono);color:var(--amber2);background:rgba(200,138,40,.08);border:1px solid rgba(200,138,40,.2);border-radius:var(--r-sm);padding:7px 11px;margin-bottom:14px}
+
+/* ── FILTERBAR GEAR ── */
+.fb-gear{background:none;border:none;color:var(--tx3);font-size:10px;cursor:pointer;padding:0 2px;line-height:1;opacity:.5;transition:all .15s;vertical-align:middle;margin-left:2px}
+.fb-gear:hover{opacity:1;color:var(--amber)}
+
+/* ── TAG MANAGER ── */
+.tm-mod-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tm-mod-tab{padding:4px 12px;font-size:11px;font-family:var(--mono);border:1px solid var(--bdr2);background:transparent;color:var(--tx3);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.tm-mod-tab:hover{color:var(--tx2);border-color:var(--bdr3)}
+.tm-mod-tab.active{border-color:var(--amber);color:var(--amber);background:rgba(240,168,50,.08)}
+.tm-tag-list{display:flex;flex-wrap:wrap;gap:6px;max-height:260px;overflow-y:auto;padding:4px 0;margin-bottom:14px}
+.tm-tag-item{display:flex;align-items:center;gap:0;border:1px solid var(--bdr2);border-radius:20px;background:var(--bg3);overflow:hidden}
+.tm-tag-item.is-custom{border-color:rgba(240,168,50,.35)}
+.tm-tag-name{font-family:var(--mono);font-size:11px;color:var(--tx2);padding:3px 10px;white-space:nowrap}
+.tm-tag-item.is-custom .tm-tag-name{color:var(--amber)}
+.tm-tag-del{background:none;border:none;border-left:1px solid var(--bdr2);color:var(--tx3);font-size:12px;padding:3px 7px;cursor:pointer;line-height:1;transition:all .15s}
+.tm-tag-del:hover{color:var(--red);background:rgba(239,68,68,.1)}
+.tm-add-row{display:flex;gap:8px;align-items:center}
+.tm-add-input{flex:1;padding:7px 10px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;transition:border .15s}
+.tm-add-input:focus{border-color:var(--amber)}
+.tm-add-input::placeholder{color:var(--tx3)}
+.tm-add-btn{padding:7px 16px;font-size:11px;font-family:var(--mono);font-weight:500;border:1px solid var(--amber);color:var(--amber);background:rgba(240,168,50,.08);border-radius:var(--r-sm);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tm-add-btn:hover{background:rgba(240,168,50,.18)}
+.tm-hint{font-size:11px;color:var(--tx3);margin-top:8px;font-family:var(--mono)}
+.tm-hint b{color:var(--amber)}
+
+.pf-count{text-align:center;font-family:var(--mono);font-size:13px;color:var(--tx2);padding:12px 20px 0}
+.pf-count b{color:var(--amber)}
+.pf-foot{padding:16px 20px;border-top:1px solid var(--bdr);display:flex;gap:8px}
+.pf-start{flex:1;padding:10px;font-size:12px;font-family:var(--mono);font-weight:500;border-radius:var(--r-sm);cursor:pointer;border:none;transition:all .15s}
+.pf-start.fc{background:var(--amber);color:#111}
+.pf-start.fc:hover{opacity:.85}
+.pf-start.timed{background:var(--bg4);color:var(--tx2);border:1px solid var(--bdr2)}
+.pf-start.timed:hover{color:var(--tx);border-color:var(--bdr3)}
+
+/* ── FLASHCARD ── */
+.fc-overlay{position:fixed;inset:0;background:var(--bg);z-index:600;display:none;flex-direction:column}
+.fc-overlay.show{display:flex}
+.fc-topbar{display:flex;align-items:center;padding:14px 24px;border-bottom:1px solid var(--bdr);flex-shrink:0;gap:12px}
+.fc-mode{font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:.1em;flex-shrink:0}
+.fc-pbar-wrap{flex:1;height:3px;background:var(--bg4);border-radius:3px}
+.fc-pbar{height:100%;background:var(--amber);border-radius:3px;transition:width .35s}
+.fc-counter{font-family:var(--mono);font-size:11px;color:var(--tx3);flex-shrink:0}
+.fc-close{background:none;border:1px solid var(--bdr2);color:var(--tx3);font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:var(--r-sm);cursor:pointer;transition:all .15s;flex-shrink:0}
+.fc-close:hover{color:var(--tx);border-color:var(--bdr3)}
+.fc-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;overflow-y:auto}
+.fc-card{width:100%;max-width:660px;background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r);padding:32px;animation:fcin .18s ease}
+@keyframes fcin{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.fc-card-meta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:18px}
+.fc-diff{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;font-weight:500}
+.fc-diff.B{background:rgba(34,197,94,.15);color:var(--green)}
+.fc-diff.I{background:rgba(240,168,50,.15);color:var(--amber)}
+.fc-diff.E{background:rgba(239,68,68,.15);color:var(--red)}
+.fc-tag{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:var(--bg4);color:var(--tx3)}
+.fc-q{font-size:17px;font-weight:500;color:var(--tx);line-height:1.65;margin-bottom:22px}
+.fc-timer-wrap{display:flex;justify-content:center;margin-bottom:16px}
+.fc-timer{position:relative;width:52px;height:52px}
+.fc-timer svg{position:absolute;top:0;left:0;transform:rotate(-90deg)}
+.fc-timer-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px;font-weight:500;color:var(--amber)}
+.fc-ans-wrap{display:none;margin-top:4px;padding-top:18px;border-top:1px solid var(--bdr)}
+.fc-ans-wrap.show{display:block}
+.fc-ans-lbl{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-bottom:8px}
+.fc-ans-txt{font-size:14px;color:var(--tx2);line-height:1.8}
+.fc-nav-row{display:flex;gap:10px;justify-content:center;padding:16px 24px 4px;flex-shrink:0;flex-wrap:wrap}
+.fc-nav-btn{padding:8px 20px;font-size:12px;font-family:var(--mono);border:1px solid var(--bdr2);background:transparent;color:var(--tx3);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.fc-nav-btn:hover{color:var(--tx);border-color:var(--bdr3)}
+.fc-reveal-btn{padding:8px 24px;font-size:12px;font-family:var(--mono);font-weight:500;background:var(--amber);border:none;color:#111;border-radius:var(--r-sm);cursor:pointer;transition:opacity .15s}
+.fc-reveal-btn:hover{opacity:.85}
+.fc-rates{display:none;gap:8px;justify-content:center;padding:8px 24px 28px;flex-shrink:0;flex-wrap:wrap}
+.fc-rates.show{display:flex}
+.fc-rate{padding:8px 22px;font-size:12px;font-family:var(--mono);font-weight:500;border:none;border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.fc-rate.got{background:rgba(34,197,94,.14);color:var(--green)}
+.fc-rate.got:hover{background:rgba(34,197,94,.26)}
+.fc-rate.partial{background:rgba(249,115,22,.14);color:var(--orange)}
+.fc-rate.partial:hover{background:rgba(249,115,22,.26)}
+.fc-rate.missed{background:rgba(239,68,68,.14);color:var(--red)}
+.fc-rate.missed:hover{background:rgba(239,68,68,.26)}
+
+/* hide browser-native password reveal eye */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear{display:none}
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-textfield-decoration-container{display:none}
+
+/* ── LOGIN SCREEN ── */
+.login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:9999;backdrop-filter:blur(5px)}
+.login-card{background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r);width:100%;max-width:340px;padding:40px 32px 36px;box-shadow:0 28px 70px rgba(0,0,0,.55);text-align:center;animation:fcin .25s ease}
+.login-logo{font-family:var(--display);font-size:22px;font-weight:800;color:var(--amber);letter-spacing:.04em;margin-bottom:4px}
+.login-logo sub{font-size:10px;color:var(--tx3);font-weight:500;margin-left:2px;vertical-align:baseline}
+.login-label{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.14em;margin-bottom:28px}
+.login-input{width:100%;padding:10px 12px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;transition:border .15s;text-align:center;margin-bottom:14px}
+.login-input:focus{border-color:var(--amber)}
+.login-input::placeholder{color:var(--tx3)}
+.login-btn{width:100%;padding:10px;font-size:12px;font-family:var(--mono);font-weight:500;background:var(--amber);color:#111;border:none;border-radius:var(--r-sm);cursor:pointer;transition:opacity .15s;letter-spacing:.04em}
+.login-btn:hover{opacity:.82}
+.login-hint{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-top:18px;opacity:.5}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--bdr2);padding:8px 18px;border-radius:var(--r-sm);font-family:var(--mono);font-size:11px;color:var(--tx2);z-index:900;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+/* ── BATCH QUEUE ── */
+.bq-section{margin-bottom:16px;display:none}
+.bq-section.has-items{display:block}
+.bq-header{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-bottom:7px;display:flex;align-items:center;gap:8px}
+.bq-count{background:var(--amber);color:#111;font-size:9px;font-family:var(--mono);font-weight:700;padding:1px 6px;border-radius:10px}
+.bq-list{display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto}
+.bq-item{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r-sm);padding:6px 10px;animation:fcin .15s ease}
+.bq-item-preview{flex:1;font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--sans)}
+.bq-item-type{font-family:var(--mono);font-size:9px;color:var(--tx3);flex-shrink:0}
+.bq-item-del{background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0;transition:color .15s}
+.bq-item-del:hover{color:var(--red)}
+.btn-queue{padding:7px 14px;font-size:12px;font-family:var(--mono);font-weight:500;background:transparent;color:var(--amber);border:1px solid var(--amber);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.btn-queue:hover{background:rgba(240,168,50,.12)}
+.batch-divider{border:none;border-top:1px solid var(--bdr);margin:4px 0 16px}
+</style>
+</head>
+<body>
+
+<!-- 🔐 LOGIN SCREEN -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">SN·REF<sub>v2</sub></div>
+    <div class="login-label">ACCESS</div>
+    <input type="password" id="password" class="login-input" placeholder="enter password" onkeydown="if(event.key==='Enter')checkPassword()">
+    <button onclick="checkPassword()" class="login-btn">Enter</button>
+    <div class="login-hint">session-locked</div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">SN·REF<sub>v2</sub></div>
+    <div class="search-wrap">
+      <span class="search-ico">⌕</span>
+      <input type="text" id="search" placeholder="search titles, answers, tags…" oninput="applyFilters()">
+    </div>
+    <div class="topbar-actions">
+      <a href="/import.html" class="tbtn" style="text-decoration:none">⬆ Import</a>
+      <button class="tbtn primary" onclick="openAddModal()">+ Add Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filterbar">
+  <div class="filterbar-inner">
+    <!-- Row 1: LEVEL + TYPE -->
+    <div class="fb-row">
+      <div class="fb-sec">
+        <span class="fb-lbl">LEVEL</span>
+        <button class="chip active" data-diff="all"  onclick="setDiff(this)">All</button>
+        <button class="chip diff-B" data-diff="B"    onclick="setDiff(this)">Beginner</button>
+        <button class="chip diff-I" data-diff="I"    onclick="setDiff(this)">Intermediate</button>
+        <button class="chip diff-E" data-diff="E"    onclick="setDiff(this)">Expert</button>
+      </div>
+      <div class="fb-sec">
+        <span class="fb-lbl">TYPE</span>
+        <button class="chip active"  data-type="all"     onclick="setType(this)">All</button>
+        <button class="chip"         data-type="ref"     onclick="setType(this)">Ref</button>
+        <button class="chip"         data-type="qa"      onclick="setType(this)">Q&amp;A</button>
+        <button class="chip"         data-type="my-note" onclick="setType(this)">My Notes</button>
+      </div>
+    </div>
+    <!-- Row 2: MODULE -->
+    <div class="fb-row">
+      <div class="fb-sec">
+        <span class="fb-lbl">MODULE <button class="fb-gear" onclick="openManage('module')" title="Manage modules">⚙</button></span>
+        <div id="mod-chips"></div>
+      </div>
+    </div>
+    <!-- Row 3: AREA -->
+    <div class="fb-row">
+      <div class="fb-sec">
+        <span class="fb-lbl">AREA <button class="fb-gear" onclick="openManage('area')" title="Manage areas">⚙</button></span>
+        <div id="sub-chips"></div>
+      </div>
+    </div>
+    <!-- Row 4: TAGS -->
+    <div class="fb-row">
+      <div class="fb-sec">
+        <span class="fb-lbl">TAGS <button class="fb-gear" onclick="openManage('tags')" title="Manage tags">⚙</button></span>
+        <div id="tag-chips"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span id="entry-count"></span>
+  <button class="fc-btn-top" onclick="openPreflight()">📇 Flashcards</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div id="entry-list"></div>
+</div>
+
+<!-- ══ ADD / EDIT MODAL ══ -->
+<div class="overlay" id="add-overlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title" id="modal-title-txt">Add Entry</span>
+      <button class="modal-close" onclick="closeOverlay('add-overlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-id">
+      <div id="edit-builtin-note" class="edit-note" style="display:none">
+        ⚠ Editing a built-in entry. Your changes are saved as a personal override and tagged <b>edited</b>.
+      </div>
+
+      <!-- CONFIG SECTION (stays locked in batch mode) -->
+      <div class="form-row">
+        <label class="form-lbl">TYPE <span style="color:var(--tx3);font-size:9px;font-weight:400">(select one or both)</span></label>
+        <div class="form-chips" id="fc-type-chips">
+          <button class="fchip active" data-val="qa"  onclick="toggleTypeChip(this)">Q&amp;A</button>
+          <button class="fchip"        data-val="ref" onclick="toggleTypeChip(this)">Reference / Note</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">MODULE</label>
+        <select class="form-select" id="f-module" onchange="updateSubOpts()">
+          <option value="itsm">ITSM</option>
+          <option value="hrsd">HRSD</option>
+          <option value="platform">Platform / Dev</option>
+          <option value="portal">Service Portal / UI</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">SUB-MODULE</label>
+        <select class="form-select" id="f-submodule"></select>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">DIFFICULTY</label>
+        <div class="form-chips" id="fc-diff-chips">
+          <button class="fchip active" data-val="B" onclick="selFChip(this,'fc-diff-chips')">Beginner</button>
+          <button class="fchip"        data-val="I" onclick="selFChip(this,'fc-diff-chips')">Intermediate</button>
+          <button class="fchip"        data-val="E" onclick="selFChip(this,'fc-diff-chips')">Expert</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">TAGS</label>
+        <input class="form-input" id="f-tag-search" placeholder="search tags…" oninput="filterTagPicker()" autocomplete="off" style="margin-bottom:8px">
+        <div id="f-tag-picker" style="display:flex;flex-wrap:wrap;gap:5px;max-height:120px;overflow-y:auto;padding:4px 0"></div>
+        <div class="form-hint">Click to select. Tags are shared across all queued entries.</div>
+      </div>
+
+      <!-- BATCH QUEUE PREVIEW (hidden until items queued) -->
+      <div class="bq-section" id="bq-section">
+        <hr class="batch-divider">
+        <div class="bq-header">QUEUED <span class="bq-count" id="bq-count">0</span></div>
+        <div class="bq-list" id="bq-list"></div>
+        <hr class="batch-divider" style="margin-top:12px">
+      </div>
+
+      <!-- CONTENT FIELDS (cleared after each queue) -->
+      <!-- QA fields -->
+      <div id="qa-fields">
+        <div class="form-row">
+          <label class="form-lbl">QUESTION</label>
+          <textarea class="form-textarea" id="f-q" placeholder="Write a clear, specific question…"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-lbl">ANSWER</label>
+          <textarea class="form-textarea" id="f-a" placeholder="Write the full answer…"></textarea>
+        </div>
+      </div>
+      <!-- REF fields -->
+      <div id="ref-fields" style="display:none">
+        <div class="form-row">
+          <label class="form-lbl">TITLE</label>
+          <input class="form-input" id="f-title" placeholder="e.g. Incident Lifecycle States">
+        </div>
+        <div class="form-row">
+          <label class="form-lbl">DEFINITION / NOTES</label>
+          <textarea class="form-textarea" id="f-def" placeholder="Key points, explanation…"></textarea>
+        </div>
+        <div class="form-row">
+          <label class="form-lbl">GOTCHA (optional)</label>
+          <textarea class="form-textarea" id="f-gotcha" placeholder="Common mistakes, edge cases…" style="min-height:70px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot" id="modal-foot">
+      <button class="btn-cancel" onclick="closeOverlay('add-overlay')">Cancel</button>
+      <button class="btn-queue" id="btn-queue" onclick="queueEntry()" style="display:none">＋ Queue</button>
+      <button class="btn-save" id="btn-save-all" onclick="saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MANAGE MODAL (module / area / tags) ══ -->
+<div class="overlay" id="manage-overlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title" id="manage-title">Manage</span>
+      <button class="modal-close" onclick="closeOverlay('manage-overlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- context sub-label for area/tags -->
+      <div id="manage-ctx" style="display:none;margin-bottom:12px">
+        <div class="tm-mod-tabs" id="manage-ctx-tabs"></div>
+      </div>
+      <div class="tm-tag-list" id="manage-item-list"></div>
+      <div class="tm-add-row">
+        <input type="text" id="manage-add-input" class="tm-add-input" placeholder="new name…"
+          onkeydown="if(event.key==='Enter')manageAdd()">
+        <button class="tm-add-btn" onclick="manageAdd()">+ Add</button>
+      </div>
+      <div class="tm-hint" id="manage-hint"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeOverlay('manage-overlay')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PREFLIGHT MODAL ══ -->
+<div class="overlay" id="pf-overlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title">📇 Flashcard Setup</span>
+      <button class="modal-close" onclick="closeOverlay('pf-overlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-lbl">SUB-MODULE (multi-select)</label>
+        <div class="form-chips" id="pf-sub-chips"></div>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">TAGS (optional — narrows further)</label>
+        <div class="form-chips" id="pf-tag-chips"></div>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">DIFFICULTY</label>
+        <div class="form-chips" id="pf-diff-chips">
+          <button class="fchip active" data-val="all" onclick="pfDiff(this)">All</button>
+          <button class="fchip"        data-val="B"   onclick="pfDiff(this)">Beginner</button>
+          <button class="fchip"        data-val="I"   onclick="pfDiff(this)">Intermediate</button>
+          <button class="fchip"        data-val="E"   onclick="pfDiff(this)">Expert</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">SCOPE</label>
+        <div class="form-chips">
+          <button class="fchip active" id="pf-weak-btn" onclick="pfToggleWeak()">All Q&amp;As</button>
+        </div>
+        <div class="form-hint" style="margin-top:7px">
+          ✦ Flashcards only pull <b>Q&amp;A</b> entries — reference notes are never used as questions
+        </div>
+      </div>
+    </div>
+    <div class="pf-count"><b id="pf-count-num">0</b> Q&amp;A cards match</div>
+    <div class="pf-foot">
+      <button class="pf-start fc"    onclick="launchFC(false)">Start Flashcards</button>
+      <button class="pf-start timed" onclick="launchFC(true)">⏱ Timed (30s)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FLASHCARD OVERLAY ══ -->
+<div class="fc-overlay" id="fc-overlay">
+  <div class="fc-topbar">
+    <span class="fc-mode" id="fc-mode-lbl">FLASHCARD</span>
+    <div class="fc-pbar-wrap"><div class="fc-pbar" id="fc-pbar" style="width:0%"></div></div>
+    <span class="fc-counter" id="fc-counter">0 / 0</span>
+    <button class="fc-close" onclick="closeFC()">✕ Close</button>
+  </div>
+  <div class="fc-body">
+    <div class="fc-card" id="fc-card">
+      <div class="fc-card-meta" id="fc-card-meta"></div>
+      <div class="fc-q" id="fc-card-q"></div>
+      <div class="fc-timer-wrap" id="fc-timer-wrap" style="display:none">
+        <div class="fc-timer">
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="22" fill="none" stroke="var(--bdr2)" stroke-width="3"/>
+            <circle id="fc-arc" cx="26" cy="26" r="22" fill="none" stroke="var(--amber)"
+              stroke-width="3" stroke-dasharray="138.23" stroke-dashoffset="0" stroke-linecap="round"/>
+          </svg>
+          <div class="fc-timer-num" id="fc-timer-num">30</div>
+        </div>
+      </div>
+      <div class="fc-ans-wrap" id="fc-ans-wrap">
+        <div class="fc-ans-lbl">ANSWER</div>
+        <div class="fc-ans-txt" id="fc-ans-txt"></div>
+      </div>
+    </div>
+  </div>
+  <div class="fc-nav-row">
+    <button class="fc-nav-btn" onclick="fcNav(-1)">← Prev</button>
+    <button class="fc-reveal-btn" id="fc-reveal-btn" onclick="fcReveal()">Reveal Answer</button>
+    <button class="fc-nav-btn" onclick="fcNav(1)">Skip →</button>
+  </div>
+  <div class="fc-rates" id="fc-rates">
+    <button class="fc-rate got"     onclick="fcRate('got')"    >✓ Got it</button>
+    <button class="fc-rate partial" onclick="fcRate('partial')" >~ Partial</button>
+    <button class="fc-rate missed"  onclick="fcRate('missed')" >✗ Missed</button>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast" id="toast"></div>
+
+</div>
+
+
+<script>
+const CORRECT_PASSWORD = "1234";
+function checkPassword() {
+  const input = document.getElementById("password").value;
+  if (input === CORRECT_PASSWORD) {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+  } else {
+    alert("Wrong password");
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BUILT-IN DATA
+   Data is loaded from separate topic files (data-*.js) in the same folder.
+   Each file pushes entries into BUILT_IN before this script runs.
+   type : "ref" = reference / definition  (not a flashcard)
+          "qa"  = question + answer pair  (flashcard eligible)
+   tags : always an array
+════════════════════════════════════════════════════════════════ */
+const BUILT_IN = [
+  /* entries are loaded from data-itsm.js, data-hrsd.js, etc. */
+];
+
+/* ════════════════════════════════════════════════════════════════
+   MODULE → SUB-MODULE MAP
+════════════════════════════════════════════════════════════════ */
+const MOD_SUBS = {
+  itsm:     ["incident","change","problem","sla","service-catalog","on-call"],
+  hrsd:     ["case-mgmt","hr-profiles","coe","lifecycle-events","document-templates"],
+  platform: ["gliderecord","business-rules","client-scripts","acls","flow-designer","rest-api","update-sets"],
+  portal:   ["widgets","ui-policies","catalog-variables","portal-config"],
+};
+const MOD_LABELS = {itsm:"ITSM",hrsd:"HRSD",platform:"Platform / Dev",portal:"Service Portal"};
+
+/* ════════════════════════════════════════════════════════════════
+   FIXED TAGS PER MODULE
+════════════════════════════════════════════════════════════════ */
+const MOD_TAGS = {
+  itsm:["states","lifecycle","priority","urgency","impact","sla","assignment","routing",
+        "resolution","mandatory-fields","ui-policy","data-policy","business-rules",
+        "parent-child","major-incident","flow-designer","notifications","approval",
+        "change-management","problem-management","knowledge","cmdb","catalog","on-call",
+        "troubleshooting","automation","acls","import-sets","transform-maps"],
+  hrsd:["case-management","hr-profiles","coe","lifecycle-events","document-templates",
+        "approvals","onboarding","offboarding","benefits","payroll","compliance",
+        "notifications","flow-designer","business-rules","data-policy","acls"],
+  platform:["gliderecord","business-rules","client-scripts","acls","flow-designer",
+            "rest-api","update-sets","script-includes","scheduled-jobs","transform-maps",
+            "import-sets","system-properties","notifications","ui-actions","data-policy",
+            "debugging","performance","security","integrations","scoped-apps"],
+  portal:["widgets","ui-policies","catalog-variables","portal-config","service-catalog",
+          "angular","css","client-scripts","data-resource","page-routes","branding",
+          "search","approval","notifications","mobile"],
+};
+
+/* ════════════════════════════════════════════════════════════════
+   FIREBASE / FIRESTORE
+════════════════════════════════════════════════════════════════ */
+firebase.initializeApp({
+  apiKey:"AIzaSyDKsRp0Bl3nJi6Q-2S2YvAO2EcxEJBkR9w",
+  authDomain:"servicenowexe.firebaseapp.com",
+  projectId:"servicenowexe",
+  storageBucket:"servicenowexe.firebasestorage.app",
+  messagingSenderId:"773349993182",
+  appId:"1:773349993182:web:197881d04cf8f40ced704f"
+});
+const fdb = firebase.firestore();
+
+async function dbGetAll(col){
+  const snap = await fdb.collection(col).get();
+  return snap.docs.map(d => d.data());
+}
+async function dbPut(col, obj){
+  await fdb.collection(col).doc(obj.id).set(obj);
+}
+async function dbDel(col, id){
+  await fdb.collection(col).doc(id).delete();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════════════ */
+const S={
+  module:"itsm",
+  subs:new Set(["all"]),
+  tags:new Set(["all"]),
+  diff:"all",
+  type:"all",
+  search:"",
+  userEntries:[],
+  userEdits:{},       // id → patch
+  ratings:{},         // id → "got"|"partial"|"missed"
+  customTags:{added:[],removed:[]}, // global flat tag list
+  customSubs:{},      // mod → { added:[], removed:[] }
+  customModules:{added:[],removed:[]},
+};
+
+/* manage modal state — declared here to avoid TDZ */
+const MG={type:"tags",ctxMod:null};
+const MG_CONFIG={
+  module:{
+    title:"Manage Modules",
+    hint:"Items in <b>amber</b> are yours. Removing a built-in module hides it; your entries stay safe.",
+    placeholder:"new module name…",
+  },
+  area:{
+    title:"Manage Areas",
+    hint:"Areas belong to a module. Items in <b>amber</b> are yours.",
+    placeholder:"new area name…",
+  },
+  tags:{
+    title:"Manage Tags",
+    hint:"Tags are global markers — not tied to any module. Items in <b>amber</b> are yours.",
+    placeholder:"new tag name…",
+  },
+};
+
+/* ════════════════════════════════════════════════════════════════
+   DYNAMIC RESOLVERS  (must be after S)
+════════════════════════════════════════════════════════════════ */
+function getModulesMap(){
+  const cm=S.customModules;
+  const base=Object.entries(MOD_LABELS).filter(([k])=>!cm.removed.includes(k));
+  const custom=(cm.added||[]).map(m=>[m.key,m.label]);
+  return Object.fromEntries([...base,...custom]);
+}
+function getSubsForModule(mod){
+  const base=MOD_SUBS[mod]||[];
+  const custom=S.customSubs[mod]||{added:[],removed:[]};
+  return [...new Set([...base,...custom.added])].filter(s=>!custom.removed.includes(s));
+}
+function getTagsForModule(mod){ // kept for any legacy refs
+  return getGlobalTags();
+}
+function getGlobalTags(){
+  const ct=S.customTags;
+  return (ct.added||[]).filter(t=>!(ct.removed||[]).includes(t)).sort();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MERGE  (built-in + user edits + user entries)
+════════════════════════════════════════════════════════════════ */
+function getAll(){
+  const builtIn=BUILT_IN.map(e=>{
+    const p=S.userEdits[e.id];
+    if(!p) return e;
+    const tags=[...new Set([...e.tags,...(p.addedTags||[]),"edited"])].filter(t=>!(p.removedTags||[]).includes(t));
+    return {...e,...p,tags,_edited:true};
+  });
+  const user=S.userEntries.map(e=>({...e,tags:[...new Set([...e.tags,"my-note"])],_user:true}));
+  return [...builtIn,...user];
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FILTER
+════════════════════════════════════════════════════════════════ */
+function getFiltered(){
+  const q=S.search.toLowerCase();
+  return getAll().filter(e=>{
+    if(e.module!==S.module) return false;
+    if(!S.subs.has("all")&&!S.subs.has(e.submodule)) return false;
+    if(!S.tags.has("all")&&![...S.tags].every(t=>e.tags.includes(t))) return false;
+    if(S.diff!=="all"&&e.difficulty!==S.diff) return false;
+    if(S.type!=="all"){
+      if(S.type==="my-note"&&!e._user) return false;
+      if(S.type==="qa"&&e.type!=="qa"&&e.type!=="both") return false;
+      if(S.type==="ref"&&e.type!=="ref"&&e.type!=="both") return false;
+    }
+    if(q){
+      const hay=[e.title||"",e.def||"",e.gotcha||"",e.q||"",e.a||"",...e.tags].join(" ").toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RENDER
+════════════════════════════════════════════════════════════════ */
+function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function hl(text){
+  const e=esc(text);
+  if(!S.search) return e;
+  const q=S.search.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  return e.replace(new RegExp(q,"gi"),m=>`<mark>${m}</mark>`);
+}
+
+function renderAll(){buildModChips();buildSubChips();buildTagChips();renderEntries();}
+
+function renderEntries(){
+  const list=document.getElementById("entry-list");
+  const items=getFiltered();
+  document.getElementById("entry-count").textContent=`${items.length} entr${items.length===1?"y":"ies"}`;
+  if(!items.length){list.innerHTML=`<div class="empty">No entries match your filters.</div>`;return;}
+
+  // group by submodule
+  const groups={};
+  items.forEach(e=>{(groups[e.submodule]=groups[e.submodule]||[]).push(e);});
+
+  let html="";
+  Object.entries(groups).forEach(([sub,entries])=>{
+    html+=`<div class="sec-hd">${sub.replace(/-/g," ")}</div>`;
+    entries.forEach(e=>{html+=makeEntry(e);});
+  });
+  list.innerHTML=html;
+}
+
+function makeEntry(e){
+  const isQA=e.type==="qa"||e.type==="both";
+  const isRef=e.type==="ref"||e.type==="both";
+  const isBoth=e.type==="both";
+  const cls=(e._user?"is-user":e._edited?"is-edited":"");
+  const badge=e._user?"my-note":isQA&&!isBoth?"qa":isRef&&!isBoth?"ref":"qa";
+  const badgeTxt=e._user?"MY NOTE":isBoth?"Q&A + REF":isQA?"Q&A":"REF";
+  const badgeCls=e._user?"my-note":isBoth?"qa":""+badge;
+  const title=isQA?(e.q||"").substring(0,90)+((e.q||"").length>90?"…":""):(e.title||"");
+  const rating=S.ratings[e.id];
+  const tagHtml=e.tags.map(t=>`<span class="etag ${t==="my-note"?"is-user":t==="edited"?"is-edited":""}">${esc(t)}</span>`).join("");
+
+  const detailHtml=(isQA
+    ?`${rating?`<span class="d-rating ${rating}">${rating==="got"?"✓ Got it":rating==="partial"?"~ Partial":"✗ Missed"}</span>`:""}
+      <div class="d-q">${hl(e.q||"")}</div>
+      <button class="reveal-btn" onclick="toggleAns(this)">Show Answer</button>
+      <div class="d-ans">${hl(e.a||"")}</div>`
+    :"")+
+    (isRef
+    ?`<div class="d-def">${hl(e.def||"")}</div>
+      ${e.gotcha?`<div class="d-gotcha"><div class="d-gotcha-lbl">⚠ GOTCHA</div>${hl(e.gotcha)}</div>`:""}`
+    :"");
+  const delBtn=`<button class="eact" onclick="deleteEntry('${e.id}')">del</button>`;
+
+  return`<div class="entry ${cls}" id="ent-${e.id}">
+  <div class="entry-hd" onclick="toggleEntry('${e.id}')">
+    <span class="tbadge ${badgeCls}">${badgeTxt}</span>
+    <span class="etitle">${hl(title)}</span>
+    <div class="etags">${tagHtml}</div>
+    <span class="ddot ${e.difficulty}" title="${{B:"Beginner",I:"Intermediate",E:"Expert"}[e.difficulty]}"></span>
+    <div class="eacts" onclick="event.stopPropagation()">
+      <button class="eact" onclick="openEditModal('${e.id}')">edit</button>
+      ${delBtn}
+    </div>
+    <svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,4 6,8 10,4"/></svg>
+  </div>
+  <div class="entry-bd">${detailHtml}</div>
+</div>`;
+}
+
+function toggleEntry(id){document.getElementById("ent-"+id)?.classList.toggle("open");}
+function toggleAns(btn){
+  const ans=btn.nextElementSibling;
+  const show=!ans.classList.contains("show");
+  ans.classList.toggle("show",show);
+  btn.textContent=show?"Hide Answer":"Show Answer";
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CHIP BUILDERS
+════════════════════════════════════════════════════════════════ */
+function buildModChips(){
+  const el=document.getElementById("mod-chips");
+  el.innerHTML="";
+  Object.entries(getModulesMap()).forEach(([k,v])=>{
+    const b=document.createElement("button");
+    b.className="chip"+(k===S.module?" active":"");
+    b.textContent=v;
+    b.onclick=()=>{S.module=k;S.subs=new Set(["all"]);S.tags=new Set(["all"]);renderAll();};
+    el.appendChild(b);
+  });
+}
+
+function buildSubChips(){
+  const el=document.getElementById("sub-chips");
+  const subs=getSubsForModule(S.module);
+  el.innerHTML="";
+  const mkChip=(lbl,val)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(S.subs.has(val)?" active":"");
+    b.textContent=lbl;
+    b.onclick=()=>{
+      if(val==="all"){S.subs=new Set(["all"]);}
+      else{
+        if(S.subs.has("all"))S.subs.clear();
+        S.subs.has(val)?S.subs.delete(val):S.subs.add(val);
+        if(!S.subs.size)S.subs.add("all");
+      }
+      applyFilters();
+    };
+    el.appendChild(b);
+  };
+  mkChip("All","all");
+  subs.forEach(s=>mkChip(s.replace(/-/g," "),s));
+}
+
+function buildTagChips(){
+  const el=document.getElementById("tag-chips");
+  const tags=getGlobalTags();
+  el.innerHTML="";
+  const mkChip=(lbl,val)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(S.tags.has(val)?" active":"");
+    b.textContent=lbl;
+    b.onclick=()=>{
+      if(val==="all"){S.tags=new Set(["all"]);}
+      else{
+        if(S.tags.has("all"))S.tags.clear();
+        S.tags.has(val)?S.tags.delete(val):S.tags.add(val);
+        if(!S.tags.size)S.tags.add("all");
+      }
+      buildTagChips();
+      applyFilters();
+    };
+    el.appendChild(b);
+  };
+  mkChip("All","all");
+  tags.forEach(t=>mkChip(t.replace(/-/g," "),t));
+}
+
+
+function setDiff(btn){
+  document.querySelectorAll(".filterbar [data-diff]").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  S.diff=btn.dataset.diff;
+  applyFilters();
+}
+function setType(btn){
+  document.querySelectorAll(".filterbar [data-type]").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  S.type=btn.dataset.type;
+  applyFilters();
+}
+function applyFilters(){
+  S.search=document.getElementById("search").value.trim();
+  buildSubChips();buildTagChips();renderEntries();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ADD / EDIT MODAL
+════════════════════════════════════════════════════════════════ */
+function updateSubOpts(){
+  const mod=document.getElementById("f-module").value;
+  const sel=document.getElementById("f-submodule");
+  sel.innerHTML=getSubsForModule(mod).map(s=>`<option value="${s}">${s.replace(/-/g," ")}</option>`).join("");
+  if(document.getElementById("f-tag-picker")) buildTagPicker([]);
+}
+
+function rebuildModuleSelect(){
+  const sel=document.getElementById("f-module");
+  const cur=sel.value;
+  sel.innerHTML=Object.entries(getModulesMap()).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
+  if(sel.querySelector(`option[value="${cur}"]`)) sel.value=cur;
+}
+
+function toggleTypeChip(btn){
+  // must have at least one active
+  const allActive=document.querySelectorAll("#fc-type-chips .fchip.active");
+  if(btn.classList.contains("active") && allActive.length===1) return; // prevent deselecting last
+  btn.classList.toggle("active");
+  const qa=document.querySelector("#fc-type-chips [data-val='qa']").classList.contains("active");
+  const ref=document.querySelector("#fc-type-chips [data-val='ref']").classList.contains("active");
+  toggleFormFields(qa,ref);
+}
+
+function selFChip(btn,gid){
+  document.querySelectorAll(`#${gid} .fchip`).forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+}
+
+function buildTagPicker(selectedTags=[]){
+  const q=(document.getElementById("f-tag-search")?.value||"").toLowerCase();
+  const tags=getGlobalTags().filter(t=>!q||t.includes(q));
+  const el=document.getElementById("f-tag-picker");
+  el.innerHTML="";
+  tags.forEach(t=>{
+    const b=document.createElement("button");
+    b.className="fchip"+(selectedTags.includes(t)?" active":"");
+    b.textContent=t.replace(/-/g," ");
+    b.dataset.tag=t;
+    b.onclick=()=>b.classList.toggle("active");
+    el.appendChild(b);
+  });
+}
+
+function filterTagPicker(){
+  const selected=getSelectedTags();
+  buildTagPicker(selected);
+}
+
+function getSelectedTags(){
+  return [...document.querySelectorAll("#f-tag-picker .fchip.active")].map(b=>b.dataset.tag);
+}
+
+function toggleFormFields(qa,ref){
+  document.getElementById("qa-fields").style.display=qa?"":"none";
+  document.getElementById("ref-fields").style.display=ref?"":"none";
+}
+
+function openAddModal(id=null){
+  BATCH=[];
+  document.getElementById("modal-title-txt").textContent=id?"Edit Entry":"Add Entry";
+  document.getElementById("edit-id").value=id||"";
+  const isBuiltIn=BUILT_IN.some(e=>e.id===id);
+  document.getElementById("edit-builtin-note").style.display=isBuiltIn?"":"none";
+
+  // show/hide batch controls — only for new entries, not edits
+  const isBatchMode=!id;
+  document.getElementById("btn-queue").style.display=isBatchMode?"":"none";
+  document.getElementById("btn-save-all").textContent="Save";
+  renderBatchQueue();
+
+  // defaults
+  document.querySelectorAll("#fc-type-chips .fchip").forEach(b=>b.classList.toggle("active",b.dataset.val==="qa"));
+  setFChipVal("fc-diff-chips","B");
+  rebuildModuleSelect();
+  document.getElementById("f-module").value=S.module;
+  document.getElementById("f-tag-search").value="";
+  updateSubOpts();
+  clearContentFields();
+  toggleFormFields(true,false);
+  buildTagPicker([]);
+
+  if(id){
+    const e=getAll().find(x=>x.id===id);
+    if(e){
+      const isQA=e.type==="qa"||e.type==="both";
+      const isRef=e.type==="ref"||e.type==="both";
+      document.querySelector("#fc-type-chips [data-val='qa']").classList.toggle("active",isQA);
+      document.querySelector("#fc-type-chips [data-val='ref']").classList.toggle("active",isRef);
+      toggleFormFields(isQA,isRef);
+      setFChipVal("fc-diff-chips",e.difficulty);
+      document.getElementById("f-module").value=e.module;
+      updateSubOpts();
+      document.getElementById("f-submodule").value=e.submodule;
+      document.getElementById("f-q").value=e.q||"";
+      document.getElementById("f-a").value=e.a||"";
+      document.getElementById("f-title").value=e.title||"";
+      document.getElementById("f-def").value=e.def||"";
+      document.getElementById("f-gotcha").value=e.gotcha||"";
+      const autoTags=[e.module,e.submodule,"edited","my-note"];
+      const preSelected=e.tags.filter(t=>!autoTags.includes(t));
+      buildTagPicker(preSelected);
+    }
+  }
+  document.getElementById("add-overlay").classList.add("show");
+}
+function openEditModal(id){openAddModal(id);}
+
+function clearContentFields(){
+  ["f-q","f-a","f-title","f-def","f-gotcha"].forEach(i=>{document.getElementById(i).value="";});
+}
+
+function getCurrentContentEntry(){
+  const qa=document.querySelector("#fc-type-chips [data-val='qa']").classList.contains("active");
+  const ref=document.querySelector("#fc-type-chips [data-val='ref']").classList.contains("active");
+  const type=qa&&ref?"both":qa?"qa":"ref";
+  const diff=document.querySelector("#fc-diff-chips .fchip.active")?.dataset.val||"B";
+  const module=document.getElementById("f-module").value;
+  const submodule=document.getElementById("f-submodule").value;
+  const extraTags=getSelectedTags();
+  const tags=[...new Set([module,submodule,...extraTags])];
+  const entry={type,difficulty:diff,module,submodule,tags};
+  if(qa){
+    entry.q=document.getElementById("f-q").value.trim();
+    entry.a=document.getElementById("f-a").value.trim();
+    if(!entry.q){return{error:"Enter a question"};}
+  }
+  if(ref){
+    entry.title=document.getElementById("f-title").value.trim();
+    entry.def=document.getElementById("f-def").value.trim();
+    if(!entry.title){return{error:"Enter a title"};}
+  }
+  return entry;
+}
+
+function queueEntry(){
+  const entry=getCurrentContentEntry();
+  if(entry.error){showToast(entry.error);return;}
+  BATCH.push(entry);
+  clearContentFields();
+  renderBatchQueue();
+  // scroll content area to top so user sees the queue
+  document.querySelector("#add-overlay .modal").scrollTop=0;
+  showToast(`Queued ✓ — ${BATCH.length} waiting`);
+}
+
+function removeBatchItem(idx){
+  BATCH.splice(idx,1);
+  renderBatchQueue();
+}
+
+function renderBatchQueue(){
+  const section=document.getElementById("bq-section");
+  const list=document.getElementById("bq-list");
+  const countEl=document.getElementById("bq-count");
+  const saveBtn=document.getElementById("btn-save-all");
+
+  if(!BATCH.length){
+    section.classList.remove("has-items");
+    saveBtn.textContent="Save";
+    return;
+  }
+  section.classList.add("has-items");
+  countEl.textContent=BATCH.length;
+  saveBtn.textContent=`Save All (${BATCH.length+1})`;
+
+  list.innerHTML="";
+  BATCH.forEach((item,i)=>{
+    const preview=item.q||item.title||"(entry)";
+    const typeLabel=item.type==="both"?"Q&A+REF":item.type.toUpperCase();
+    const d=document.createElement("div");
+    d.className="bq-item";
+    d.innerHTML=`<span class="bq-item-preview">${esc(preview)}</span><span class="bq-item-type">${typeLabel}</span><button class="bq-item-del" onclick="removeBatchItem(${i})" title="Remove">✕</button>`;
+    list.appendChild(d);
+  });
+}
+
+function setFChipVal(gid,val){
+  document.querySelectorAll(`#${gid} .fchip`).forEach(b=>{
+    b.classList.toggle("active",b.dataset.val===val);
+  });
+}
+
+async function saveEntry(){
+  const id=document.getElementById("edit-id").value;
+  const isBuiltIn=BUILT_IN.some(e=>e.id===id);
+
+  // ── EDIT (single, built-in or user) ──
+  if(id){
+    const qa=document.querySelector("#fc-type-chips [data-val='qa']").classList.contains("active");
+    const ref=document.querySelector("#fc-type-chips [data-val='ref']").classList.contains("active");
+    const type=qa&&ref?"both":qa?"qa":"ref";
+    const diff=document.querySelector("#fc-diff-chips .fchip.active")?.dataset.val||"B";
+    const module=document.getElementById("f-module").value;
+    const submodule=document.getElementById("f-submodule").value;
+    const extraTags=getSelectedTags();
+
+    if(isBuiltIn){
+      const patch={id,difficulty:diff,addedTags:extraTags,removedTags:[]};
+      if(qa){patch.q=document.getElementById("f-q").value.trim();patch.a=document.getElementById("f-a").value.trim();}
+      if(ref){patch.title=document.getElementById("f-title").value.trim();patch.def=document.getElementById("f-def").value.trim();patch.gotcha=document.getElementById("f-gotcha").value.trim();}
+      dbPut("edits",patch).catch(e=>console.warn("db err",e));
+      S.userEdits[id]=patch;
+    } else {
+      const eid=id;
+      const tags=[...new Set([module,submodule,...extraTags])];
+      const entry={id:eid,module,submodule,type,difficulty:diff,tags};
+      if(qa){entry.q=document.getElementById("f-q").value.trim();entry.a=document.getElementById("f-a").value.trim();}
+      if(ref){entry.title=document.getElementById("f-title").value.trim();entry.def=document.getElementById("f-def").value.trim();entry.gotcha=document.getElementById("f-gotcha").value.trim();}
+      dbPut("entries",entry).catch(e=>console.warn("db err",e));
+      const idx=S.userEntries.findIndex(e=>e.id===eid);
+      if(idx>=0)S.userEntries[idx]=entry;else S.userEntries.push(entry);
+    }
+    closeOverlay("add-overlay");
+    renderEntries();
+    showToast(isBuiltIn?"Edit saved (tagged 'edited') ✓":"Entry updated ✓");
+    return;
+  }
+
+  // ── BULK ADD (new entries, BATCH + current) ──
+  const currentEntry=getCurrentContentEntry();
+  if(currentEntry.error){
+    // if there's nothing in current AND batch has items, allow save-batch-only
+    if(BATCH.length){
+      // save only queued
+    } else {
+      showToast(currentEntry.error);return;
+    }
+  } else {
+    BATCH.push(currentEntry);
+  }
+
+  if(!BATCH.length){showToast("Nothing to save");return;}
+
+  const total=BATCH.length;
+  const now=Date.now();
+  BATCH.forEach((item,i)=>{
+    const eid=`user-${now}-${i}`;
+    const entry={id:eid,...item};
+    S.userEntries.push(entry);
+    dbPut("entries",entry).catch(e=>console.warn("db err",e));
+  });
+
+  BATCH=[];
+  closeOverlay("add-overlay");
+  renderEntries();
+  showToast(`${total} entr${total===1?"y":"ies"} added ✓`);
+}
+
+async function deleteEntry(id){
+  if(!confirm("Delete this entry?"))return;
+  const isBuiltIn=BUILT_IN.some(e=>e.id===id);
+  if(isBuiltIn){
+    // remove the edit override so it reverts to built-in
+    await dbDel("edits",id);
+    delete S.userEdits[id];
+  } else {
+    await dbDel("entries",id);
+    S.userEntries=S.userEntries.filter(e=>e.id!==id);
+  }
+  renderEntries();
+  showToast("Entry deleted");
+}
+
+/* ════════════════════════════════════════════════════════════════
+   UNIFIED MANAGE MODAL  (module / area / tags)
+════════════════════════════════════════════════════════════════ */
+
+function openManage(type){
+  MG.type=type;
+  MG.ctxMod=S.module;
+  const cfg=MG_CONFIG[type];
+  document.getElementById("manage-title").textContent=cfg.title;
+  document.getElementById("manage-add-input").placeholder=cfg.placeholder;
+  document.getElementById("manage-add-input").value="";
+  document.getElementById("manage-hint").innerHTML=cfg.hint;
+
+  // module ctx tabs only for area (tags are global — no module context)
+  const ctxEl=document.getElementById("manage-ctx");
+  if(type==="area"){
+    ctxEl.style.display="";
+    renderManageCtxTabs();
+  } else {
+    ctxEl.style.display="none";
+  }
+
+  renderManageList();
+  document.getElementById("manage-overlay").classList.add("show");
+}
+
+function renderManageCtxTabs(){
+  const el=document.getElementById("manage-ctx-tabs");
+  el.innerHTML="";
+  Object.entries(getModulesMap()).forEach(([k,v])=>{
+    const b=document.createElement("button");
+    b.className="tm-mod-tab"+(k===MG.ctxMod?" active":"");
+    b.textContent=v;
+    b.onclick=()=>{MG.ctxMod=k;renderManageCtxTabs();renderManageList();document.getElementById("manage-add-input").value="";};
+    el.appendChild(b);
+  });
+}
+
+function renderManageList(){
+  const el=document.getElementById("manage-item-list");
+  el.innerHTML="";
+  let items=[];
+
+  if(MG.type==="module"){
+    const cm=S.customModules;
+    Object.entries(MOD_LABELS)
+      .filter(([k])=>!cm.removed.includes(k))
+      .forEach(([k,v])=>items.push({key:k,label:v,isCustom:false}));
+    (cm.added||[]).forEach(m=>items.push({key:m.key,label:m.label,isCustom:true}));
+
+  } else if(MG.type==="area"){
+    const base=MOD_SUBS[MG.ctxMod]||[];
+    const cs=S.customSubs[MG.ctxMod]||{added:[],removed:[]};
+    base.filter(s=>!cs.removed.includes(s))
+        .forEach(s=>items.push({key:s,label:s.replace(/-/g," "),isCustom:false}));
+    cs.added.forEach(s=>items.push({key:s,label:s.replace(/-/g," "),isCustom:true}));
+
+  } else {
+    // tags — global, no module
+    const ct=S.customTags;
+    (ct.added||[]).filter(t=>!(ct.removed||[]).includes(t))
+      .sort()
+      .forEach(t=>items.push({key:t,label:t.replace(/-/g," "),isCustom:true}));
+  }
+
+  if(!items.length){
+    el.innerHTML=`<span style="font-family:var(--mono);font-size:11px;color:var(--tx3)">Nothing here yet — add one below.</span>`;
+    return;
+  }
+  items.forEach(({key,label,isCustom})=>{
+    const d=document.createElement("div");
+    d.className="tm-tag-item"+(isCustom?" is-custom":"");
+    d.innerHTML=`<span class="tm-tag-name">${label}</span><button class="tm-tag-del" title="Remove" onclick="manageRemove('${key}')">✕</button>`;
+    el.appendChild(d);
+  });
+}
+
+async function manageAdd(){
+  const raw=document.getElementById("manage-add-input").value;
+
+  if(MG.type==="module"){
+    const label=raw.trim();
+    if(!label){showToast("Enter a module name");return;}
+    const key=label.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    if(!key){showToast("Enter a valid name");return;}
+    if(getModulesMap()[key]){showToast("Module already exists");return;}
+    S.customModules.removed=S.customModules.removed.filter(r=>r!==key);
+    S.customModules.added.push({key,label});
+    if(!S.customSubs[key]) S.customSubs[key]={added:[],removed:[]};
+    document.getElementById("manage-add-input").value="";
+    renderManageList();renderAll();
+    showToast(`Module "${label}" added ✓`);
+    dbPut("customModules",{id:"__modules__",added:S.customModules.added,removed:S.customModules.removed}).catch(e=>console.warn("db err",e));
+    return;
+  }
+
+  if(MG.type==="area"){
+    const val=raw.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    if(!val){showToast("Enter a valid area name");return;}
+    const cs=S.customSubs[MG.ctxMod]||(S.customSubs[MG.ctxMod]={added:[],removed:[]});
+    if(getSubsForModule(MG.ctxMod).includes(val)){showToast("Area already exists");return;}
+    cs.removed=cs.removed.filter(r=>r!==val);
+    if(!cs.added.includes(val)) cs.added.push(val);
+    document.getElementById("manage-add-input").value="";
+    renderManageList();renderAll();
+    showToast(`Area "${val}" added ✓`);
+    dbPut("customSubs",{id:MG.ctxMod,added:cs.added,removed:cs.removed}).catch(e=>console.warn("db err",e));
+    return;
+  }
+
+  // tags — global
+  const val=raw.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  if(!val){showToast("Enter a valid tag name");return;}
+  const ct=S.customTags;
+  if(ct.added.includes(val)){showToast("Tag already exists");return;}
+  ct.removed=ct.removed.filter(r=>r!==val);
+  ct.added.push(val);
+  document.getElementById("manage-add-input").value="";
+  renderManageList();renderAll();buildTagPicker(getSelectedTags());
+  showToast(`Tag "${val}" added ✓`);
+  dbPut("customTags",{id:"__tags__",added:ct.added,removed:ct.removed}).catch(e=>console.warn("db err",e));
+}
+
+async function manageRemove(key){
+  if(MG.type==="module"){
+    const cm=S.customModules;
+    cm.added=cm.added.filter(m=>m.key!==key);
+    if(MOD_LABELS[key]&&!cm.removed.includes(key)) cm.removed.push(key);
+    if(S.module===key){
+      S.module=Object.keys(getModulesMap())[0]||"itsm";
+    }
+    renderManageList();renderAll();
+    showToast(`Module "${key}" removed ✓`);
+    dbPut("customModules",{id:"__modules__",added:cm.added,removed:cm.removed}).catch(e=>console.warn("db err",e));
+    return;
+  }
+
+  if(MG.type==="area"){
+    const cs=S.customSubs[MG.ctxMod]||(S.customSubs[MG.ctxMod]={added:[],removed:[]});
+    cs.added=cs.added.filter(s=>s!==key);
+    if((MOD_SUBS[MG.ctxMod]||[]).includes(key)&&!cs.removed.includes(key)) cs.removed.push(key);
+    if(S.subs.has(key)){S.subs.delete(key);if(!S.subs.size)S.subs.add("all");}
+    renderManageList();renderAll();
+    showToast(`Area "${key}" removed ✓`);
+    dbPut("customSubs",{id:MG.ctxMod,added:cs.added,removed:cs.removed}).catch(e=>console.warn("db err",e));
+    return;
+  }
+
+  // tags — global
+  const ct=S.customTags;
+  ct.added=ct.added.filter(t=>t!==key);
+  if(S.tags.has(key)){S.tags.delete(key);if(!S.tags.size)S.tags.add("all");}
+  renderManageList();renderAll();
+  showToast(`Tag "${key}" removed ✓`);
+  dbPut("customTags",{id:"__tags__",added:ct.added,removed:ct.removed}).catch(e=>console.warn("db err",e));
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FLASHCARD
+════════════════════════════════════════════════════════════════ */
+const PF={subs:new Set(["all"]),tags:new Set(["all"]),diff:"all",weakOnly:false};
+const FC={deck:[],idx:0,timed:false,interval:null};
+let BATCH=[];
+
+function getPfDeck(){
+  return getAll().filter(e=>{
+    if(e.module!==S.module||(e.type!=="qa"&&e.type!=="both")) return false;
+    if(!PF.subs.has("all")&&!PF.subs.has(e.submodule)) return false;
+    if(!PF.tags.has("all")&&!e.tags.some(t=>PF.tags.has(t))) return false;
+    if(PF.diff!=="all"&&e.difficulty!==PF.diff) return false;
+    if(PF.weakOnly&&S.ratings[e.id]==="got") return false;
+    return true;
+  });
+}
+
+function openPreflight(){
+  buildPfSubChips();buildPfTagChips();updatePfCount();
+  document.getElementById("pf-overlay").classList.add("show");
+}
+
+function buildPfSubChips(){
+  const el=document.getElementById("pf-sub-chips");
+  const subs=MOD_SUBS[S.module]||[];
+  el.innerHTML="";
+  const mk=(lbl,val)=>{
+    const b=document.createElement("button");
+    b.className="fchip"+(PF.subs.has(val)?" active":"");
+    b.textContent=lbl;
+    b.onclick=()=>{
+      if(val==="all"){PF.subs=new Set(["all"]);}
+      else{if(PF.subs.has("all"))PF.subs.clear();PF.subs.has(val)?PF.subs.delete(val):PF.subs.add(val);if(!PF.subs.size)PF.subs.add("all");}
+      buildPfSubChips();updatePfCount();
+    };
+    el.appendChild(b);
+  };
+  mk("All","all");subs.forEach(s=>mk(s.replace(/-/g," "),s));
+}
+
+function buildPfTagChips(){
+  const el=document.getElementById("pf-tag-chips");
+  const tagSet=new Set();
+  getAll().filter(e=>e.module===S.module&&(e.type==="qa"||e.type==="both")).forEach(e=>e.tags.forEach(t=>{
+    if(!Object.keys(MOD_LABELS).includes(t)&&!Object.values(MOD_SUBS).flat().includes(t)) tagSet.add(t);
+  }));
+  el.innerHTML="";
+  const mk=(lbl,val)=>{
+    const b=document.createElement("button");
+    b.className="fchip"+(PF.tags.has(val)?" active":"");
+    b.textContent=lbl;
+    b.onclick=()=>{
+      if(val==="all"){PF.tags=new Set(["all"]);}
+      else{if(PF.tags.has("all"))PF.tags.clear();PF.tags.has(val)?PF.tags.delete(val):PF.tags.add(val);if(!PF.tags.size)PF.tags.add("all");}
+      buildPfTagChips();updatePfCount();
+    };
+    el.appendChild(b);
+  };
+  mk("Any tag","all");[...tagSet].sort().forEach(t=>mk(t,t));
+}
+
+function pfDiff(btn){
+  document.querySelectorAll("#pf-diff-chips .fchip").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  PF.diff=btn.dataset.val;
+  updatePfCount();
+}
+
+function pfToggleWeak(){
+  PF.weakOnly=!PF.weakOnly;
+  const btn=document.getElementById("pf-weak-btn");
+  btn.textContent=PF.weakOnly?"Weak spots only":"All Q&As";
+  btn.classList.toggle("active",PF.weakOnly);
+  updatePfCount();
+}
+function updatePfCount(){document.getElementById("pf-count-num").textContent=getPfDeck().length;}
+
+function launchFC(timed){
+  const deck=getPfDeck();
+  if(!deck.length){showToast("No Q&A cards match — adjust filters");return;}
+  for(let i=deck.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[deck[i],deck[j]]=[deck[j],deck[i]];}
+  Object.assign(FC,{deck,idx:0,timed,interval:null});
+  closeOverlay("pf-overlay");
+  document.getElementById("fc-overlay").classList.add("show");
+  document.getElementById("fc-mode-lbl").textContent=timed?"TIMED":"FLASHCARD";
+  document.getElementById("fc-timer-wrap").style.display=timed?"flex":"none";
+  renderFC();
+}
+
+function renderFC(){
+  const e=FC.deck[FC.idx];
+  clearFCTimer();
+  document.getElementById("fc-pbar").style.width=((FC.idx/FC.deck.length)*100)+"%";
+  document.getElementById("fc-counter").textContent=`${FC.idx+1} / ${FC.deck.length}`;
+  document.getElementById("fc-card-meta").innerHTML=[
+    `<span class="fc-diff ${e.difficulty}">${{B:"Beginner",I:"Intermediate",E:"Expert"}[e.difficulty]}</span>`,
+    ...e.tags.map(t=>`<span class="fc-tag">${esc(t)}</span>`)
+  ].join("");
+  document.getElementById("fc-card-q").textContent=e.q;
+  document.getElementById("fc-ans-txt").textContent=e.a;
+  document.getElementById("fc-ans-wrap").classList.remove("show");
+  document.getElementById("fc-reveal-btn").style.display="";
+  document.getElementById("fc-rates").classList.remove("show");
+  if(FC.timed)startFCTimer();
+}
+
+function fcReveal(){
+  clearFCTimer();
+  document.getElementById("fc-ans-wrap").classList.add("show");
+  document.getElementById("fc-reveal-btn").style.display="none";
+  document.getElementById("fc-rates").classList.add("show");
+}
+
+async function fcRate(r){
+  const e=FC.deck[FC.idx];
+  S.ratings[e.id]=r;
+  await dbPut("ratings",{id:e.id,rating:r});
+  fcNav(1);
+}
+function fcNav(dir){
+  FC.idx+=dir;
+  if(FC.idx<0)FC.idx=0;
+  if(FC.idx>=FC.deck.length){closeFC();showToast(`Session done — ${FC.deck.length} cards reviewed ✓`);renderEntries();return;}
+  renderFC();
+}
+function closeFC(){clearFCTimer();document.getElementById("fc-overlay").classList.remove("show");}
+
+let fcTimerInt;
+function startFCTimer(){
+  let t=30;const arc=document.getElementById("fc-arc"),num=document.getElementById("fc-timer-num"),circ=138.23;
+  const tick=()=>{num.textContent=t;arc.style.strokeDashoffset=circ*(1-t/30);if(t<=0){clearInterval(fcTimerInt);fcReveal();return;}t--;};
+  tick();fcTimerInt=setInterval(tick,1000);
+}
+function clearFCTimer(){clearInterval(fcTimerInt);}
+
+
+
+/* ════════════════════════════════════════════════════════════════
+   UTILS
+════════════════════════════════════════════════════════════════ */
+function closeOverlay(id){document.getElementById(id).classList.remove("show");}
+let toastTmr;
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(toastTmr);toastTmr=setTimeout(()=>t.classList.remove("show"),2600);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════════════ */
+async function init(){
+  (await dbGetAll("entries")).forEach(e=>{S.userEntries.push(e);});
+  (await dbGetAll("edits")).forEach(e=>{S.userEdits[e.id]=e;});
+  (await dbGetAll("ratings")).forEach(r=>{S.ratings[r.id]=r.rating;});
+  // global tags (flat, not per-module)
+  const tagsSnap=await dbGetAll("customTags");
+  const tRec=tagsSnap.find(t=>t.id==="__tags__");
+  if(tRec) S.customTags={added:tRec.added||[],removed:tRec.removed||[]};
+  // areas per module
+  (await dbGetAll("customSubs")).forEach(c=>{S.customSubs[c.id]={added:c.added||[],removed:c.removed||[]};});
+  // custom modules
+  const mods=await dbGetAll("customModules");
+  const mRec=mods.find(m=>m.id==="__modules__");
+  if(mRec) S.customModules={added:mRec.added||[],removed:mRec.removed||[]};
+  renderAll();
+}
+init();
+
+</script>
+</body>
+</html>
