@@ -259,6 +259,17 @@ document.getElementById("pw-input").addEventListener("keydown", e => {
   if(e.key === "Enter") doLogin();
 });
 
+// On load: warn if no hash exists yet
+window.addEventListener("load", () => {
+  if(!localStorage.getItem(PW_KEY)){
+    const err = document.getElementById("pw-err");
+    err.style.color = "var(--orange)";
+    err.innerHTML = '⚠ No password set yet — <a href="/" style="color:var(--amber)">open main app first</a> to create one.';
+    document.getElementById("pw-input").style.display = "none";
+    document.querySelector(".pw-btn").style.display = "none";
+  }
+});
+
 /* ════════════════════════════════════════════════════════════════
    VALIDATION
 ════════════════════════════════════════════════════════════════ */
