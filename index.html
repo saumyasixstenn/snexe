@@ -679,13 +679,29 @@ async function sha256(str){
 }
 
 async function authInit(){
-  try{await firebase.auth().signOut();}catch(e){}
-  // fetch reader hash from Firestore
+  // fetch reader hash from Firestore (needed regardless of auth state)
   try{
     const doc=await fdb.collection("settings").doc("appConfig").get();
     READER_HASH=doc.exists?doc.data().readerHash||null:null;
   }catch(e){READER_HASH=null;}
-  showLoginSection(READER_HASH?"ls-reader":"ls-not-configured");
+
+  // check if reader session is persisted in sessionStorage
+  const readerSession=sessionStorage.getItem("snref_reader_session");
+
+  // use Firebase onAuthStateChanged to check for existing admin session
+  // this resolves immediately if already signed in (no round-trip needed)
+  firebase.auth().onAuthStateChanged(user=>{
+    if(user){
+      // admin was already signed in — restore session silently
+      unlockApp("admin");
+    } else if(readerSession==="true"){
+      // reader was logged in this browser session — restore silently
+      unlockApp("reader");
+    } else {
+      // no session — show login
+      showLoginSection(READER_HASH?"ls-reader":"ls-not-configured");
+    }
+  });
 }
 
 function showLoginSection(id){
@@ -709,6 +725,7 @@ async function readerLogin(){
   if(!input){err.textContent="Enter the access password.";err.style.display="block";return;}
   if(!READER_HASH){err.textContent="No access password configured yet.";err.style.display="block";return;}
   if((await sha256(input))===READER_HASH){
+    sessionStorage.setItem("snref_reader_session","true");
     unlockApp("reader");
   } else {
     err.textContent="Wrong password.";
