@@ -243,7 +243,17 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 .login-btn:hover{opacity:.82}
 .login-hint{font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-top:18px;opacity:.5}
 
-/* ── TOAST ── */
+/* ── READER PREVIEW BANNER ── */
+.preview-banner{display:none;position:sticky;top:52px;z-index:195;background:rgba(46,196,182,.12);border-bottom:1px solid rgba(46,196,182,.35);padding:6px 24px;align-items:center;justify-content:center;gap:12px}
+.preview-banner.show{display:flex}
+.preview-banner-txt{font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:.1em}
+.preview-banner-exit{font-family:var(--mono);font-size:10px;padding:3px 12px;border:1px solid var(--teal);color:var(--teal);background:transparent;border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
+.preview-banner-exit:hover{background:rgba(46,196,182,.15)}
+
+/* ── MODULE LOADING STATE ── */
+.mod-loading{text-align:center;padding:60px 0;font-family:var(--mono);font-size:11px;color:var(--tx3)}
+.mod-loading-dot{display:inline-block;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--bdr2);padding:8px 18px;border-radius:var(--r-sm);font-family:var(--mono);font-size:11px;color:var(--tx2);z-index:900;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 
@@ -320,10 +330,17 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
     </div>
     <div class="topbar-actions">
       <a href="import.html" class="tbtn admin-only" style="text-decoration:none">⇄ Import</a>
+      <button class="tbtn admin-only" id="preview-toggle-btn" onclick="toggleReaderPreview()" title="Preview as reader">👁 Preview</button>
       <button class="tbtn admin-only" onclick="openChangePw()" title="Change password">🔑</button>
       <button class="tbtn primary admin-only" onclick="openAddModal()">+ Add Entry</button>
     </div>
   </div>
+</div>
+
+<!-- READER PREVIEW BANNER -->
+<div class="preview-banner" id="preview-banner">
+  <span class="preview-banner-txt">👁 READER PREVIEW — you are seeing exactly what readers see</span>
+  <button class="preview-banner-exit" onclick="toggleReaderPreview()">Exit Preview</button>
 </div>
 
 <!-- FILTER BAR -->
@@ -650,7 +667,7 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 /* ════════════════════════════════════════════════════════════════
    ROLE
 ════════════════════════════════════════════════════════════════ */
-const ROLE={current:null}; // 'admin' | 'reader'
+const ROLE={current:null,_real:null}; // _real set during reader preview
 let READER_HASH=null; // cached from Firestore on load
 
 /* ════════════════════════════════════════════════════════════════
@@ -727,13 +744,38 @@ function unlockApp(role){
   init();
 }
 
+function toggleReaderPreview(){
+  if(ROLE._real){
+    ROLE.current=ROLE._real;
+    ROLE._real=null;
+  } else {
+    ROLE._real=ROLE.current;
+    ROLE.current="reader";
+  }
+  applyRoleUI(ROLE.current);
+  renderEntries();
+}
+
 function applyRoleUI(role){
   const isAdmin=role==="admin";
+  const isPreviewing=!!ROLE._real;
+  // hide admin-only elements when reader OR when previewing
   document.querySelectorAll(".admin-only").forEach(el=>{
-    el.style.display=isAdmin?"":"none";
+    el.style.display=(isAdmin&&!isPreviewing)?"":"none";
   });
+  // preview button: show only when true admin (even during preview so they can exit)
+  const pvBtn=document.getElementById("preview-toggle-btn");
+  if(pvBtn) pvBtn.style.display=(isAdmin||isPreviewing)?"":"none";
+  // banner
+  const banner=document.getElementById("preview-banner");
+  if(banner) banner.classList.toggle("show",isPreviewing);
+  // role indicator
   const ind=document.getElementById("role-indicator");
-  if(ind){ind.textContent=isAdmin?"ADMIN":"";ind.style.display=isAdmin?"":"none";}
+  if(ind){
+    if(isPreviewing){ind.textContent="PREVIEWING";ind.style.display="";ind.style.color="var(--orange)";}
+    else if(isAdmin){ind.textContent="ADMIN";ind.style.display="";ind.style.color="var(--teal)";}
+    else{ind.textContent="";ind.style.display="none";}
+  }
 }
 
 /* ── Change passwords (admin-only modal) ── */
@@ -864,11 +906,13 @@ const S={
   type:"all",
   search:"",
   _tagSearch:"",
-  userEntries:[],
+  userEntries:[],     // user-created notes (userNote:true) — loaded at init
+  moduleCache:{},     // mod → array of non-userNote entries — loaded on demand
+  loadingModule:false,
   userEdits:{},       // id → patch
   ratings:{},         // id → "got"|"partial"|"missed"
-  customTags:{added:[],removed:[]}, // global flat tag list
-  customSubs:{},      // mod → { added:[], removed:[] }
+  customTags:{added:[],removed:[]},
+  customSubs:{},
   customModules:{added:[],removed:[]},
 };
 
@@ -932,15 +976,18 @@ function getAllEntryTags(moduleFilter){
    MERGE  (built-in + user edits + user entries)
 ════════════════════════════════════════════════════════════════ */
 function getAll(){
-  const builtIn=BUILT_IN.map(e=>{
+  // cached entries for current module (non-userNote, loaded lazily)
+  const cached=S.moduleCache[S.module]||[];
+  const builtIn=cached.map(e=>{
     const p=S.userEdits[e.id];
     if(!p) return e;
     const tags=[...new Set([...e.tags,...(p.addedTags||[]),"edited"])].filter(t=>!(p.removedTags||[]).includes(t));
     return {...e,...p,tags,_edited:true};
   });
-  const user=S.userEntries.map(e=>e.userNote
-    ?{...e,tags:[...new Set([...e.tags,"my-note"])],_user:true}
-    :{...e,_user:false});
+  // user notes filtered to current module
+  const user=S.userEntries
+    .filter(e=>e.module===S.module)
+    .map(e=>({...e,tags:[...new Set([...e.tags,"my-note"])],_user:true}));
   return [...builtIn,...user];
 }
 
@@ -1055,14 +1102,46 @@ function toggleAns(btn){
 /* ════════════════════════════════════════════════════════════════
    CHIP BUILDERS
 ════════════════════════════════════════════════════════════════ */
+async function switchModule(mod){
+  S.module=mod;
+  S.subs=new Set(["all"]);
+  S.tags=new Set(["all"]);
+  S._tagSearch="";
+  const si=document.getElementById("tag-search-input");if(si)si.value="";
+  buildModChips();buildSubChips();buildTagChips();
+  if(S.moduleCache[mod]!==undefined){
+    // already cached — render immediately
+    renderEntries();
+    document.getElementById("entry-count").textContent="";
+    return;
+  }
+  // cold — show loading state
+  S.loadingModule=true;
+  document.getElementById("entry-list").innerHTML=
+    `<div class="mod-loading">Loading <span class="mod-loading-dot">▪▪▪</span></div>`;
+  document.getElementById("entry-count").textContent="";
+  try{
+    const snap=await fdb.collection("entries").where("module","==",mod).get();
+    const entries=snap.docs.map(d=>d.data()).filter(e=>!e.userNote);
+    S.moduleCache[mod]=entries;
+  }catch(e){
+    console.warn("module load err",e);
+    S.moduleCache[mod]=[];
+  }
+  S.loadingModule=false;
+  renderEntries();
+}
+
 function buildModChips(){
   const el=document.getElementById("mod-chips");
   el.innerHTML="";
   Object.entries(getModulesMap()).forEach(([k,v])=>{
     const b=document.createElement("button");
     b.className="chip"+(k===S.module?" active":"");
+    const cached=S.moduleCache[k]!==undefined;
     b.textContent=v;
-    b.onclick=()=>{S.module=k;S.subs=new Set(["all"]);S.tags=new Set(["all"]);S._tagSearch="";const si=document.getElementById("tag-search-input");if(si)si.value="";renderAll();};
+    b.title=cached?"":"not loaded yet — click to load";
+    b.onclick=()=>switchModule(k);
     el.appendChild(b);
   });
 }
@@ -1393,12 +1472,16 @@ async function deleteEntry(id){
   if(!confirm("Delete this entry?"))return;
   const isBuiltIn=BUILT_IN.some(e=>e.id===id);
   if(isBuiltIn){
-    // remove the edit override so it reverts to built-in
     await dbDel("edits",id);
     delete S.userEdits[id];
   } else {
     await dbDel("entries",id);
+    // remove from userEntries (user notes)
     S.userEntries=S.userEntries.filter(e=>e.id!==id);
+    // remove from moduleCache if present
+    Object.keys(S.moduleCache).forEach(mod=>{
+      S.moduleCache[mod]=S.moduleCache[mod].filter(e=>e.id!==id);
+    });
   }
   renderEntries();
   showToast("Entry deleted");
@@ -1797,25 +1880,34 @@ function showToast(msg){
    INIT
 ════════════════════════════════════════════════════════════════ */
 async function init(){
-  (await dbGetAll("entries")).forEach(e=>{S.userEntries.push(e);});
+  // load user-created notes only (small, personal)
+  const allEntries=await dbGetAll("entries");
+  allEntries.filter(e=>e.userNote).forEach(e=>S.userEntries.push(e));
+
+  // load edits (patches on imported cards — small collection)
   (await dbGetAll("edits")).forEach(e=>{S.userEdits[e.id]=e;});
+
   // ratings — admin syncs from Firestore, readers use localStorage
   if(ROLE.current==="admin"){
     (await dbGetAll("ratings")).forEach(r=>{S.ratings[r.id]=r.rating;});
   } else {
     try{const r=localStorage.getItem("snref_ratings");if(r)Object.assign(S.ratings,JSON.parse(r));}catch(e){}
   }
-  // global tags (flat, not per-module)
+
+  // config collections (small, always load)
   const tagsSnap=await dbGetAll("customTags");
   const tRec=tagsSnap.find(t=>t.id==="__tags__");
   if(tRec) S.customTags={added:tRec.added||[],removed:tRec.removed||[]};
-  // areas per module
   (await dbGetAll("customSubs")).forEach(c=>{S.customSubs[c.id]={added:c.added||[],removed:c.removed||[]};});
-  // custom modules
   const mods=await dbGetAll("customModules");
   const mRec=mods.find(m=>m.id==="__modules__");
   if(mRec) S.customModules={added:mRec.added||[],removed:mRec.removed||[]};
-  renderAll();
+
+  // build UI — then lazy-load the default module
+  buildModChips();buildSubChips();buildTagChips();
+  document.getElementById("entry-count").textContent="";
+  // load default module automatically
+  await switchModule(S.module);
 }
 authInit();
 
