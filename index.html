@@ -282,7 +282,6 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
       <input type="text" id="search" placeholder="search titles, answers, tags…" oninput="applyFilters()">
     </div>
     <div class="topbar-actions">
-      <a href="/import.html" class="tbtn" style="text-decoration:none">⬆ Import</a>
       <button class="tbtn primary" onclick="openAddModal()">+ Add Entry</button>
     </div>
   </div>
@@ -470,6 +469,10 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
       <button class="modal-close" onclick="closeOverlay('pf-overlay')">✕</button>
     </div>
     <div class="modal-body">
+      <div class="form-row">
+        <label class="form-lbl">MODULE</label>
+        <div class="form-chips" id="pf-mod-chips"></div>
+      </div>
       <div class="form-row">
         <label class="form-lbl">SUB-MODULE (multi-select)</label>
         <div class="form-chips" id="pf-sub-chips"></div>
@@ -1314,13 +1317,14 @@ async function manageRemove(key){
 /* ════════════════════════════════════════════════════════════════
    FLASHCARD
 ════════════════════════════════════════════════════════════════ */
-const PF={subs:new Set(["all"]),tags:new Set(["all"]),diff:"all",weakOnly:false};
+const PF={module:"all",subs:new Set(["all"]),tags:new Set(["all"]),diff:"all",weakOnly:false};
 const FC={deck:[],idx:0,timed:false,interval:null};
 let BATCH=[];
 
 function getPfDeck(){
   return getAll().filter(e=>{
-    if(e.module!==S.module||(e.type!=="qa"&&e.type!=="both")) return false;
+    if(e.type!=="qa"&&e.type!=="both") return false;
+    if(PF.module!=="all"&&e.module!==PF.module) return false;
     if(!PF.subs.has("all")&&!PF.subs.has(e.submodule)) return false;
     if(!PF.tags.has("all")&&!e.tags.some(t=>PF.tags.has(t))) return false;
     if(PF.diff!=="all"&&e.difficulty!==PF.diff) return false;
@@ -1330,14 +1334,40 @@ function getPfDeck(){
 }
 
 function openPreflight(){
-  buildPfSubChips();buildPfTagChips();updatePfCount();
+  buildPfModChips();buildPfSubChips();buildPfTagChips();updatePfCount();
   document.getElementById("pf-overlay").classList.add("show");
+}
+
+function buildPfModChips(){
+  const el=document.getElementById("pf-mod-chips");
+  el.innerHTML="";
+  const mk=(lbl,val)=>{
+    const b=document.createElement("button");
+    b.className="fchip"+(PF.module===val?" active":"");
+    b.textContent=lbl;
+    b.onclick=()=>{
+      PF.module=val;
+      PF.subs=new Set(["all"]);
+      buildPfModChips();buildPfSubChips();buildPfTagChips();updatePfCount();
+    };
+    el.appendChild(b);
+  };
+  mk("All Modules","all");
+  Object.entries(getModulesMap()).forEach(([k,v])=>mk(v,k));
 }
 
 function buildPfSubChips(){
   const el=document.getElementById("pf-sub-chips");
-  const subs=MOD_SUBS[S.module]||[];
   el.innerHTML="";
+  let subs=[];
+  if(PF.module==="all"){
+    const seen=new Set();
+    Object.keys(getModulesMap()).forEach(mod=>{
+      getSubsForModule(mod).forEach(s=>{if(!seen.has(s)){seen.add(s);subs.push(s);}});
+    });
+  } else {
+    subs=getSubsForModule(PF.module);
+  }
   const mk=(lbl,val)=>{
     const b=document.createElement("button");
     b.className="fchip"+(PF.subs.has(val)?" active":"");
@@ -1355,8 +1385,13 @@ function buildPfSubChips(){
 function buildPfTagChips(){
   const el=document.getElementById("pf-tag-chips");
   const tagSet=new Set();
-  getAll().filter(e=>e.module===S.module&&(e.type==="qa"||e.type==="both")).forEach(e=>e.tags.forEach(t=>{
-    if(!Object.keys(MOD_LABELS).includes(t)&&!Object.values(MOD_SUBS).flat().includes(t)) tagSet.add(t);
+  const allSubs=Object.values(MOD_SUBS).flat();
+  getAll().filter(e=>{
+    if(e.type!=="qa"&&e.type!=="both") return false;
+    if(PF.module!=="all"&&e.module!==PF.module) return false;
+    return true;
+  }).forEach(e=>e.tags.forEach(t=>{
+    if(!Object.keys(MOD_LABELS).includes(t)&&!allSubs.includes(t)) tagSet.add(t);
   }));
   el.innerHTML="";
   const mk=(lbl,val)=>{
