@@ -657,7 +657,7 @@ async function authInit(){
   try{await firebase.auth().signOut();}catch(e){}
   // fetch reader hash from Firestore
   try{
-    const doc=await fdb.collection("settings").doc("__config__").get();
+    const doc=await fdb.collection("settings").doc("appConfig").get();
     READER_HASH=doc.exists?doc.data().readerHash||null:null;
   }catch(e){READER_HASH=null;}
   showLoginSection(READER_HASH?"ls-reader":"ls-not-configured");
@@ -750,7 +750,7 @@ async function doChangeReaderPassword(){
   if(nw!==cf){show("Passwords don't match.");return;}
   const hash=await sha256(nw);
   try{
-    await fdb.collection("settings").doc("__config__").set({readerHash:hash},{merge:true});
+    await fdb.collection("settings").doc("appConfig").set({readerHash:hash},{merge:true});
     READER_HASH=hash;
     closeOverlay("changepw-overlay");
     showToast("Reader password updated ✓");
