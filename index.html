@@ -1880,9 +1880,9 @@ function showToast(msg){
    INIT
 ════════════════════════════════════════════════════════════════ */
 async function init(){
-  // load user-created notes only (small, personal)
-  const allEntries=await dbGetAll("entries");
-  allEntries.filter(e=>e.userNote).forEach(e=>S.userEntries.push(e));
+  // load only user-created notes (targeted query — not all entries)
+  const userSnap=await fdb.collection("entries").where("userNote","==",true).get();
+  userSnap.docs.map(d=>d.data()).forEach(e=>S.userEntries.push(e));
 
   // load edits (patches on imported cards — small collection)
   (await dbGetAll("edits")).forEach(e=>{S.userEdits[e.id]=e;});

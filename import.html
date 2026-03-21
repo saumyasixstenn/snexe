@@ -6,6 +6,7 @@
 <title>SN Ref — Import</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
 :root{
   --bg:#111113;--bg2:#18181b;--bg3:#222228;--bg4:#2a2a32;
@@ -111,11 +112,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px
 <!-- LOGIN -->
 <div class="login-card" id="login-card">
   <div class="logo">SN·REF<sub>v2</sub></div>
-  <div class="login-label">IMPORT ACCESS</div>
-  <input type="password" id="pw-input" class="pw-input" placeholder="enter password"
+  <div class="login-label">ADMIN IMPORT ACCESS</div>
+  <input type="email" id="pw-email" class="pw-input" placeholder="admin email"
+    onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()"
+    style="margin-bottom:10px">
+  <input type="password" id="pw-input" class="pw-input" placeholder="admin password"
     onkeydown="if(event.key==='Enter')doLogin()">
   <div class="pw-err" id="pw-err"></div>
-  <button class="pw-btn" onclick="doLogin()">Enter</button>
+  <button class="pw-btn" onclick="doLogin()">Sign In as Admin</button>
+  <div style="font-family:'Fira Code',monospace;font-size:9px;color:var(--tx3);margin-top:16px;opacity:.5;letter-spacing:.08em">import is admin-only</div>
 </div>
 
 <!-- MAIN APP -->
@@ -133,16 +138,16 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px
     <div class="card-title">STEP 1 — PASTE OR UPLOAD JSON</div>
 
     <textarea class="json-area" id="json-input"
-      placeholder='Paste JSON array here, e.g:
+      placeholder='Paste JSON array here. New ID format: {module}-{submodule}-{concept}-{n}
 [
   {
-    "id": "sn-inc-001",
+    "id": "itsm-incident-definition-002",
     "module": "itsm",
     "submodule": "incident",
     "type": "qa",
     "difficulty": "B",
-    "tags": ["itsm","incident"],
-    "q": "What is an Incident?",
+    "tags": ["itsm","incident","definition"],
+    "q": "What is an Incident? / How is an Incident defined?",
     "a": "An Incident is..."
   }
 ]'></textarea>
@@ -155,8 +160,9 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px
     </div>
 
     <div class="hint">
-      Required fields per entry: <b>id</b>, <b>module</b>, <b>submodule</b>, <b>type</b> (qa/ref/both), <b>difficulty</b> (B/I/E), <b>tags</b> (array).<br>
-      For Q&amp;A: also <b>q</b> and <b>a</b>. For Reference: also <b>title</b> and <b>def</b>.
+      <b>ID format:</b> {module}-{submodule}-{concept}-{n} e.g. <code style="color:var(--teal)">itsm-incident-definition-002</code><br>
+      Required fields: <b>id</b>, <b>module</b>, <b>submodule</b>, <b>type</b> (qa/ref/both), <b>difficulty</b> (B/I/E), <b>tags</b> (array — must include module + submodule keys).<br>
+      Q&amp;A: also <b>q</b> and <b>a</b>. Reference: also <b>title</b> and <b>def</b>. Optional: <b>gotcha</b> (ref/both only).
     </div>
 
     <div class="val-box" id="val-box"></div>
@@ -228,35 +234,32 @@ firebase.initializeApp({
 const fdb = firebase.firestore();
 
 /* ════════════════════════════════════════════════════════════════
-   AUTH — same localStorage hash as main app
+   AUTH — Firebase Auth (admin only)
 ════════════════════════════════════════════════════════════════ */
-const PW_KEY = "snref_pwhash";
-
-async function sha256(str){
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-
 async function doLogin(){
-  const input = document.getElementById("pw-input").value;
+  const email = document.getElementById("pw-email").value.trim();
+  const pw    = document.getElementById("pw-input").value;
   const errEl = document.getElementById("pw-err");
   errEl.textContent = "";
-  if(!input){ errEl.textContent = "enter a password"; return; }
-  const stored = localStorage.getItem(PW_KEY);
-  if(!stored){ errEl.textContent = "no password set — open main app first"; return; }
-  const hash = await sha256(input);
-  if(hash === stored){
+  if(!email || !pw){ errEl.textContent = "enter email and password"; return; }
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email, pw);
     document.getElementById("login-card").style.display = "none";
     document.getElementById("app").style.display = "flex";
-  } else {
-    errEl.textContent = "wrong password";
+  } catch(e){
+    const bad=["auth/invalid-credential","auth/wrong-password","auth/user-not-found","auth/invalid-email"];
+    errEl.textContent = bad.includes(e.code) ? "wrong email or password" : "sign-in failed: "+e.message;
     document.getElementById("pw-input").value = "";
     document.getElementById("pw-input").focus();
   }
 }
 
-document.getElementById("pw-input").addEventListener("keydown", e => {
-  if(e.key === "Enter") doLogin();
+// On load — if already signed in, skip login
+firebase.auth().onAuthStateChanged(user=>{
+  if(user){
+    document.getElementById("login-card").style.display = "none";
+    document.getElementById("app").style.display = "flex";
+  }
 });
 
 /* ════════════════════════════════════════════════════════════════
@@ -314,7 +317,7 @@ function validateJSON(){
         errors.push(`${label}: missing required field "${f}"`);
     });
 
-    // type-specific fields
+    // type-specific fields — ALL required (errors, not warnings)
     if(item.type === "qa" || item.type === "both"){
       REQUIRED_QA.forEach(f => {
         if(!item[f]) errors.push(`${label}: missing "${f}" (required for type "${item.type}")`);
@@ -322,7 +325,7 @@ function validateJSON(){
     }
     if(item.type === "ref" || item.type === "both"){
       REQUIRED_REF.forEach(f => {
-        if(!item[f]) warnings.push(`${label}: missing "${f}" (expected for type "${item.type}")`);
+        if(!item[f]) errors.push(`${label}: missing "${f}" (required for type "${item.type}")`);
       });
     }
 
@@ -334,8 +337,25 @@ function validateJSON(){
     if(item.tags !== undefined && !Array.isArray(item.tags))
       errors.push(`${label}: tags must be an array`);
 
-    // duplicate IDs
+    // tags must include module and submodule keys (protocol requirement)
+    if(Array.isArray(item.tags) && item.module && item.submodule){
+      if(!item.tags.includes(item.module))
+        warnings.push(`${label}: tags should include module key "${item.module}"`);
+      if(!item.tags.includes(item.submodule))
+        warnings.push(`${label}: tags should include submodule key "${item.submodule}"`);
+      if(item.tags.length > 8)
+        warnings.push(`${label}: ${item.tags.length} tags is a lot — protocol recommends max 8`);
+    }
+
+    // ID format check — warn if old format, info if new format
     if(item.id){
+      const isOldFormat = /^sn-[a-z]+-\d+$/.test(item.id) || /^sn-(inc|prob|chg|sla|cat|br|cs|gr|si|acl|imp|fix|us|cmdb|gen)-\d+$/.test(item.id);
+      const isNewFormat = /^[a-z][a-z0-9-]+-[a-z][a-z0-9-]+-[a-z][a-z0-9-]+-\d{3}$/.test(item.id);
+      if(isOldFormat)
+        warnings.push(`${label}: ID "${item.id}" uses old format — new format is {module}-{submodule}-{concept}-{n}`);
+      else if(!isNewFormat)
+        warnings.push(`${label}: ID "${item.id}" doesn't match expected format {module}-{submodule}-{concept}-{n}`);
+
       if(ids.has(item.id)) errors.push(`${label}: duplicate id "${item.id}" in this file`);
       ids.add(item.id);
     }
