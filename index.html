@@ -264,10 +264,28 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 <div id="login-screen" class="login-screen">
   <div class="login-card">
     <div class="login-logo">SN·REF<sub>v2</sub></div>
-    <div class="login-label">ACCESS</div>
-    <input type="password" id="password" class="login-input" placeholder="enter password" onkeydown="if(event.key==='Enter')checkPassword()">
-    <button onclick="checkPassword()" class="login-btn">Enter</button>
-    <div class="login-hint">session-locked</div>
+
+    <!-- SETUP MODE (first visit) -->
+    <div id="ls-setup" style="display:none">
+      <div class="login-label">CREATE PASSWORD</div>
+      <input type="password" id="setup-pw" class="login-input" placeholder="choose a password"
+        onkeydown="if(event.key==='Enter')document.getElementById('setup-pw2').focus()">
+      <input type="password" id="setup-pw2" class="login-input" placeholder="confirm password"
+        onkeydown="if(event.key==='Enter')setupPassword()">
+      <div id="setup-err" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:10px;text-align:left"></div>
+      <button onclick="setupPassword()" class="login-btn">Create Password</button>
+      <div class="login-hint">first-time setup</div>
+    </div>
+
+    <!-- LOGIN MODE (returning visits) -->
+    <div id="ls-login" style="display:none">
+      <div class="login-label">ACCESS</div>
+      <input type="password" id="password" class="login-input" placeholder="enter password"
+        onkeydown="if(event.key==='Enter')checkPassword()">
+      <div id="login-err" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:10px;text-align:left"></div>
+      <button onclick="checkPassword()" class="login-btn">Enter</button>
+      <div class="login-hint">session-locked</div>
+    </div>
   </div>
 </div>
 
@@ -282,6 +300,8 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
       <input type="text" id="search" placeholder="search titles, answers, tags…" oninput="applyFilters()">
     </div>
     <div class="topbar-actions">
+      <a href="import.html" class="tbtn" style="text-decoration:none">⇄ Import</a>
+      <button class="tbtn" onclick="openChangePw()" title="Change password">🔑</button>
       <button class="tbtn primary" onclick="openAddModal()">+ Add Entry</button>
     </div>
   </div>
@@ -548,6 +568,36 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
   </div>
 </div>
 
+<!-- ══ CHANGE PASSWORD MODAL ══ -->
+<div class="overlay" id="changepw-overlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title">🔑 Change Password</span>
+      <button class="modal-close" onclick="closeOverlay('changepw-overlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-lbl">CURRENT PASSWORD</label>
+        <input type="password" class="form-input" id="cpw-current" placeholder="current password">
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">NEW PASSWORD</label>
+        <input type="password" class="form-input" id="cpw-new" placeholder="new password">
+      </div>
+      <div class="form-row">
+        <label class="form-lbl">CONFIRM NEW PASSWORD</label>
+        <input type="password" class="form-input" id="cpw-confirm" placeholder="confirm new password"
+          onkeydown="if(event.key==='Enter')doChangePassword()">
+      </div>
+      <div id="cpw-err" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);margin-top:-6px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeOverlay('changepw-overlay')">Cancel</button>
+      <button class="btn-save" onclick="doChangePassword()">Change Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- toast -->
 <div class="toast" id="toast"></div>
 
@@ -555,15 +605,70 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 
 
 <script>
-const CORRECT_PASSWORD = "1234";
-function checkPassword() {
-  const input = document.getElementById("password").value;
-  if (input === CORRECT_PASSWORD) {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("app").style.display = "block";
+/* ════════════════════════════════════════════════════════════════
+   AUTH  (SHA-256 · localStorage)
+════════════════════════════════════════════════════════════════ */
+async function sha256(str){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+function unlockApp(){
+  document.getElementById("login-screen").style.display="none";
+  document.getElementById("app").style.display="block";
+  init();
+}
+
+async function authInit(){
+  const stored=localStorage.getItem("snref_pwhash");
+  document.getElementById("ls-setup").style.display=stored?"none":"block";
+  document.getElementById("ls-login").style.display=stored?"block":"none";
+}
+
+async function setupPassword(){
+  const pw=document.getElementById("setup-pw").value;
+  const pw2=document.getElementById("setup-pw2").value;
+  const err=document.getElementById("setup-err");
+  err.style.display="none";
+  if(!pw){err.textContent="Enter a password.";err.style.display="block";return;}
+  if(pw!==pw2){err.textContent="Passwords don't match.";err.style.display="block";return;}
+  localStorage.setItem("snref_pwhash",await sha256(pw));
+  unlockApp();
+}
+
+async function checkPassword(){
+  const input=document.getElementById("password").value;
+  const err=document.getElementById("login-err");
+  err.style.display="none";
+  if((await sha256(input))===localStorage.getItem("snref_pwhash")){
+    unlockApp();
   } else {
-    alert("Wrong password");
+    err.textContent="Wrong password.";
+    err.style.display="block";
+    document.getElementById("password").value="";
+    document.getElementById("password").focus();
   }
+}
+
+function openChangePw(){
+  ["cpw-current","cpw-new","cpw-confirm"].forEach(id=>document.getElementById(id).value="");
+  const err=document.getElementById("cpw-err");err.style.display="none";
+  document.getElementById("changepw-overlay").classList.add("show");
+}
+
+async function doChangePassword(){
+  const cur=document.getElementById("cpw-current").value;
+  const nw=document.getElementById("cpw-new").value;
+  const cf=document.getElementById("cpw-confirm").value;
+  const err=document.getElementById("cpw-err");
+  const show=(msg)=>{err.textContent=msg;err.style.display="block";};
+  err.style.display="none";
+  if(!cur||!nw||!cf){show("All fields required.");return;}
+  if(nw!==cf){show("New passwords don't match.");return;}
+  if((await sha256(cur))!==localStorage.getItem("snref_pwhash")){show("Current password is wrong.");return;}
+  localStorage.setItem("snref_pwhash",await sha256(nw));
+  closeOverlay("changepw-overlay");
+  showToast("Password changed ✓");
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1514,7 +1619,7 @@ async function init(){
   if(mRec) S.customModules={added:mRec.added||[],removed:mRec.removed||[]};
   renderAll();
 }
-init();
+authInit();
 
 </script>
 </body>
