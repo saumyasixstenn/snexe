@@ -742,6 +742,10 @@ async function adminLogin(){
   err.style.display="none";
   if(!email||!pw){err.textContent="Enter email and password.";err.style.display="block";return;}
   try{
+    // SESSION persistence: admin token lives only for the browser tab/window session.
+    // Closing the browser clears it entirely. Page refresh within the same session keeps it.
+    // Reader behaviour (sessionStorage flag) is unchanged.
+    await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION);
     await firebase.auth().signInWithEmailAndPassword(email,pw);
     unlockApp("admin");
   }catch(e){
