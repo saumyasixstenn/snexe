@@ -82,6 +82,22 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:14px
 .tbadge.ref{background:rgba(167,139,250,.15);color:var(--purple)}
 .tbadge.qa{background:rgba(240,168,50,.15);color:var(--amber)}
 .tbadge.my-note{background:rgba(46,196,182,.15);color:var(--teal)}
+.tbadge.deepdive{background:rgba(99,102,241,.18);color:#818cf8;letter-spacing:.04em}
+/* depth dots for deep dive */
+.ddot.overview{background:#60a5fa}.ddot.practitioner{background:#a78bfa}.ddot.architect{background:#f472b6}
+/* deep dive entry — no expand, cursor pointer direct to viewer */
+.entry.is-deepdive{border-left:2px solid rgba(99,102,241,.5);padding-left:10px}
+.entry.is-deepdive .entry-hd{cursor:pointer}
+.dd-summary{font-size:11px;color:var(--tx3);font-family:var(--sans);line-height:1.5;padding:0 0 10px;margin-top:-4px}
+.dd-meta{display:flex;align-items:center;gap:8px;padding:4px 0 8px;flex-wrap:wrap}
+.dd-depth{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;font-weight:500}
+.dd-depth.overview{background:rgba(96,165,250,.15);color:#60a5fa}
+.dd-depth.practitioner{background:rgba(167,139,250,.15);color:#a78bfa}
+.dd-depth.architect{background:rgba(244,114,182,.15);color:#f472b6}
+.dd-progress{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px}
+.dd-progress.read{background:rgba(34,197,94,.12);color:var(--green)}
+.dd-progress.review{background:rgba(249,115,22,.12);color:var(--orange)}
+.dd-progress.mastered{background:rgba(99,102,241,.15);color:#818cf8}
 .etitle{font-size:13px;font-weight:500;color:var(--tx2);flex:1;transition:color .15s;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
 .etitle mark{background:rgba(240,168,50,.25);color:var(--amber);border-radius:2px;padding:0 2px}
 .etags{display:flex;gap:4px;flex-shrink:0;flex-wrap:nowrap;overflow:hidden}
@@ -271,8 +287,36 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
 .btn-queue{padding:7px 14px;font-size:12px;font-family:var(--mono);font-weight:500;background:transparent;color:var(--amber);border:1px solid var(--amber);border-radius:var(--r-sm);cursor:pointer;transition:all .15s}
 .btn-queue:hover{background:rgba(240,168,50,.12)}
 .batch-divider{border:none;border-top:1px solid var(--bdr);margin:4px 0 16px}
+/* ── DEEP DIVE VIEWER ── */
+.dd-overlay{position:fixed;inset:0;background:var(--bg);z-index:600;display:none;flex-direction:column}
+.dd-overlay.show{display:flex}
+.dd-viewer-topbar{display:flex;align-items:center;padding:14px 24px;border-bottom:1px solid var(--bdr);flex-shrink:0;gap:12px}
+.dd-mode-lbl{font-family:var(--mono);font-size:10px;color:#818cf8;letter-spacing:.1em;flex-shrink:0}
+.dd-topic-title{font-family:var(--display);font-size:14px;font-weight:700;color:var(--tx);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-close-btn{background:none;border:1px solid var(--bdr2);color:var(--tx3);font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:var(--r-sm);cursor:pointer;transition:all .15s;flex-shrink:0}
+.dd-close-btn:hover{color:var(--tx);border-color:var(--bdr3)}
+.dd-body{flex:1;display:flex;overflow:hidden}
+.dd-sidenav{width:190px;flex-shrink:0;border-right:1px solid var(--bdr);overflow-y:auto;padding:12px 0}
+@media(max-width:900px){.dd-sidenav{display:none}}
+.dd-nav-item{display:block;width:100%;padding:6px 16px;font-family:var(--mono);font-size:10px;color:var(--tx3);background:none;border:none;text-align:left;cursor:pointer;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dd-nav-item:hover{color:var(--tx2);background:var(--bg3)}
+.dd-nav-item.active{color:#818cf8;background:rgba(99,102,241,.07)}
+.dd-content{flex:1;overflow-y:auto;padding:36px 48px;line-height:1.9;font-size:14px;color:var(--tx2)}
+.dd-content-inner{max-width:780px;margin:0 auto}
+.dd-content h2{font-family:var(--display);font-size:16px;font-weight:700;color:var(--tx);margin:36px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--bdr2);scroll-margin-top:20px}
+.dd-content h2:first-child{margin-top:0}
+.dd-content h3{font-family:var(--display);font-size:13px;font-weight:700;color:var(--tx);margin:24px 0 10px}
+.dd-content p{margin-bottom:16px}
+.dd-content strong{color:var(--tx);font-weight:600}
+.dd-content code{font-family:var(--mono);font-size:11.5px;color:var(--teal);background:rgba(46,196,182,.1);padding:1px 5px;border-radius:3px}
+.dd-footer{flex-shrink:0;border-top:1px solid var(--bdr);padding:12px 24px;display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap}
+.dd-progress-lbl{font-family:var(--mono);font-size:10px;color:var(--tx3)}
+.dd-pbtn{padding:6px 16px;font-size:11px;font-family:var(--mono);font-weight:500;border-radius:var(--r-sm);cursor:pointer;border:1px solid var(--bdr2);background:transparent;color:var(--tx3);transition:all .15s}
+.dd-pbtn:hover{color:var(--tx);border-color:var(--bdr3)}
+.dd-pbtn.p-read{border-color:var(--green);color:var(--green);background:rgba(34,197,94,.08)}
+.dd-pbtn.p-review{border-color:var(--orange);color:var(--orange);background:rgba(249,115,22,.08)}
+.dd-pbtn.p-mastered{border-color:#818cf8;color:#818cf8;background:rgba(99,102,241,.08)}
 </style>
-</head>
 <body>
 
 <!-- 🔐 LOGIN SCREEN -->
@@ -357,10 +401,21 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
       </div>
       <div class="fb-sec">
         <span class="fb-lbl">TYPE</span>
-        <button class="chip active"  data-type="all"     onclick="setType(this)">All</button>
-        <button class="chip"         data-type="ref"     onclick="setType(this)">Ref</button>
-        <button class="chip"         data-type="qa"      onclick="setType(this)">Q&amp;A</button>
-        <button class="chip"         data-type="my-note" onclick="setType(this)">My Notes</button>
+        <button class="chip active"  data-type="all"       onclick="setType(this)">All</button>
+        <button class="chip"         data-type="ref"       onclick="setType(this)">Ref</button>
+        <button class="chip"         data-type="qa"        onclick="setType(this)">Q&amp;A</button>
+        <button class="chip"         data-type="deepdive"  onclick="setType(this)">📖 Deep Dive</button>
+        <button class="chip"         data-type="my-note"   onclick="setType(this)">My Notes</button>
+      </div>
+    </div>
+    <!-- Row 1b: DEPTH (only visible when type=deepdive) -->
+    <div class="fb-row" id="depth-row" style="display:none">
+      <div class="fb-sec">
+        <span class="fb-lbl">DEPTH</span>
+        <button class="chip active" data-depth="all"          onclick="setDepth(this)">All</button>
+        <button class="chip"        data-depth="overview"     onclick="setDepth(this)">Overview</button>
+        <button class="chip"        data-depth="practitioner" onclick="setDepth(this)">Practitioner</button>
+        <button class="chip"        data-depth="architect"    onclick="setDepth(this)">Architect</button>
       </div>
     </div>
     <!-- Row 2: MODULE -->
@@ -657,6 +712,27 @@ input[type="password"]::-webkit-textfield-decoration-container{display:none}
   </div>
 </div>
 
+<!-- ══ DEEP DIVE VIEWER ══ -->
+<div class="dd-overlay" id="dd-overlay">
+  <div class="dd-viewer-topbar">
+    <span class="dd-mode-lbl">📖 DEEP DIVE</span>
+    <span class="dd-topic-title" id="dd-topic-title"></span>
+    <button class="dd-close-btn" onclick="closeDDViewer()">✕ Close</button>
+  </div>
+  <div class="dd-body">
+    <nav class="dd-sidenav" id="dd-sidenav"></nav>
+    <div class="dd-content" id="dd-content">
+      <div class="dd-content-inner" id="dd-content-inner"></div>
+    </div>
+  </div>
+  <div class="dd-footer">
+    <span class="dd-progress-lbl">MARK AS</span>
+    <button class="dd-pbtn" id="dd-pbtn-read"     onclick="setDDProgress('read')">✓ Read</button>
+    <button class="dd-pbtn" id="dd-pbtn-review"   onclick="setDDProgress('review')">↺ Needs Review</button>
+    <button class="dd-pbtn" id="dd-pbtn-mastered" onclick="setDDProgress('mastered')">★ Mastered</button>
+  </div>
+</div>
+
 <!-- toast -->
 <div class="toast" id="toast"></div>
 
@@ -924,6 +1000,7 @@ const S={
   subs:new Set(["all"]),
   tags:new Set(["all"]),
   diff:"all",
+  depth:"all",
   type:"all",
   search:"",
   _tagSearch:"",
@@ -932,6 +1009,7 @@ const S={
   loadingModule:false,
   userEdits:{},       // id → patch
   ratings:{},         // id → "got"|"partial"|"missed"
+  ddProgress:{},      // id → "read"|"review"|"mastered"
   customTags:{added:[],removed:[]},
   customSubs:{},
   customModules:{added:[],removed:[]},
@@ -1021,14 +1099,25 @@ function getFiltered(){
     if(e.module!==S.module) return false;
     if(!S.subs.has("all")&&!S.subs.has(e.submodule)) return false;
     if(!S.tags.has("all")&&![...S.tags].every(t=>e.tags.includes(t))) return false;
-    if(S.diff!=="all"&&e.difficulty!==S.diff) return false;
     if(S.type!=="all"){
       if(S.type==="my-note"&&!e._user) return false;
       if(S.type==="qa"&&e.type!=="qa"&&e.type!=="both") return false;
       if(S.type==="ref"&&e.type!=="ref"&&e.type!=="both") return false;
+      if(S.type==="deepdive"&&e.type!=="deepdive") return false;
+      // when not filtering for deepdive, exclude deepdives from other views
+      if(S.type!=="deepdive"&&S.type!=="all"&&e.type==="deepdive") return false;
     }
+    // hide deepdives from "all" view unless explicitly filtering for them
+    if(S.type==="all"&&e.type==="deepdive") return false;
+    // difficulty filter only applies to non-deepdive entries
+    if(S.diff!=="all"&&e.type!=="deepdive"&&e.difficulty!==S.diff) return false;
+    // depth filter only applies to deepdive entries
+    if(S.depth!=="all"&&e.type==="deepdive"&&e.depth!==S.depth) return false;
     if(q){
-      const hay=[e.title||"",e.def||"",e.gotcha||"",e.q||"",e.a||"",...e.tags].join(" ").toLowerCase();
+      // deepdive has different fields — search topic, summary, content
+      const hay=e.type==="deepdive"
+        ?[e.topic||"",e.summary||"",e.content||"",...(e.tags||[])].join(" ").toLowerCase()
+        :[e.title||"",e.def||"",e.gotcha||"",e.q||"",e.a||"",...(e.tags||[])].join(" ").toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -1074,6 +1163,27 @@ function toggleGroup(sub){
 }
 
 function makeEntry(e){
+  // ── DEEP DIVE entry ──
+  if(e.type==="deepdive"){
+    const prog=S.ddProgress[e.id];
+    const progHtml=prog?`<span class="dd-progress ${prog}">${prog==="read"?"✓ Read":prog==="review"?"↺ Review":"★ Mastered"}</span>`:"";
+    const depthHtml=e.depth?`<span class="dd-depth ${e.depth}">${e.depth}</span>`:"";
+    const adminBtns=ROLE.current==="admin"
+      ?`<button class="eact" onclick="event.stopPropagation();deleteEntry('${e.id}')">del</button>`:"";
+    return`<div class="entry is-deepdive" id="ent-${e.id}" onclick="openDDViewer('${e.id}')">
+  <div class="entry-hd">
+    <span class="tbadge deepdive">DEEP DIVE</span>
+    <span class="etitle">${hl(e.topic||e.title||"")}</span>
+    <div class="etags">${e.tags.map(t=>`<span class="etag">${esc(t)}</span>`).join("")}</div>
+    <div class="eacts" onclick="event.stopPropagation()">${adminBtns}</div>
+    <svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,4 6,8 10,4"/></svg>
+  </div>
+  <div class="dd-meta">${depthHtml}${progHtml}</div>
+  ${e.summary?`<div class="dd-summary">${esc(e.summary)}</div>`:""}
+</div>`;
+  }
+
+  // ── Q&A / REF / MY-NOTE entry ──
   const isQA=e.type==="qa"||e.type==="both";
   const isRef=e.type==="ref"||e.type==="both";
   const isBoth=e.type==="both";
@@ -1226,6 +1336,18 @@ function setType(btn){
   document.querySelectorAll(".filterbar [data-type]").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
   S.type=btn.dataset.type;
+  const isDD=S.type==="deepdive";
+  // show depth row only for deep dives, hide level row for deep dives
+  const depthRow=document.getElementById("depth-row");
+  if(depthRow) depthRow.style.display=isDD?"flex":"none";
+  // reset depth when switching away
+  if(!isDD){S.depth="all";document.querySelectorAll("[data-depth]").forEach(b=>b.classList.toggle("active",b.dataset.depth==="all"));}
+  applyFilters();
+}
+function setDepth(btn){
+  document.querySelectorAll(".filterbar [data-depth]").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  S.depth=btn.dataset.depth;
   applyFilters();
 }
 function applyFilters(){
@@ -1703,6 +1825,7 @@ let BATCH=[];
 
 function getPfDeck(){
   return getAll().filter(e=>{
+    if(e.type==="deepdive") return false; // deep dives never go in flashcard deck
     if(e.type!=="qa"&&e.type!=="both") return false;
     if(PF.module!=="all"&&e.module!==PF.module) return false;
     if(!PF.subs.has("all")&&!PF.subs.has(e.submodule)) return false;
@@ -1887,8 +2010,117 @@ function clearFCTimer(){clearInterval(fcTimerInt);}
 
 
 /* ════════════════════════════════════════════════════════════════
-   UTILS
+   DEEP DIVE VIEWER
 ════════════════════════════════════════════════════════════════ */
+let DD_CURRENT=null; // current deep dive entry being viewed
+
+function openDDViewer(id){
+  const e=getAll().find(x=>x.id===id);
+  if(!e||e.type!=="deepdive") return;
+  DD_CURRENT=e;
+  document.getElementById("dd-topic-title").textContent=e.topic||e.title||"";
+  renderDDContent(e);
+  buildDDSidenav(e);
+  updateDDProgressButtons(id);
+  document.getElementById("dd-overlay").classList.add("show");
+}
+
+function closeDDViewer(){
+  document.getElementById("dd-overlay").classList.remove("show");
+  DD_CURRENT=null;
+}
+
+function renderDDContent(e){
+  const inner=document.getElementById("dd-content-inner");
+  const raw=e.content||"";
+  // Parse ## headings, ### sub-headings, **bold**, `code`, paragraphs
+  const html=raw
+    .split(/\n\n+/)
+    .map(block=>{
+      block=block.trim();
+      if(!block) return "";
+      if(block.startsWith("### ")){
+        return`<h3>${esc(block.slice(4))}</h3>`;
+      }
+      if(block.startsWith("## ")){
+        const txt=block.slice(3);
+        const anchor=txt.toLowerCase().replace(/[^a-z0-9]+/g,"-");
+        return`<h2 id="dd-sec-${anchor}">${esc(txt)}</h2>`;
+      }
+      // inline formatting
+      const formatted=esc(block)
+        .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+        .replace(/`([^`]+)`/g,"<code>$1</code>");
+      return`<p>${formatted}</p>`;
+    })
+    .join("");
+  inner.innerHTML=html;
+  // scroll back to top
+  document.getElementById("dd-content").scrollTop=0;
+}
+
+function buildDDSidenav(e){
+  const nav=document.getElementById("dd-sidenav");
+  nav.innerHTML="";
+  const sections=e.sections||[];
+  if(!sections.length){
+    // derive from content if sections array missing
+    const matches=[...(e.content||"").matchAll(/^## (.+)$/gm)];
+    matches.forEach(m=>{
+      const btn=document.createElement("button");
+      btn.className="dd-nav-item";
+      btn.textContent=m[1];
+      btn.onclick=()=>scrollDDToSection(m[1]);
+      nav.appendChild(btn);
+    });
+  } else {
+    sections.forEach(s=>{
+      const btn=document.createElement("button");
+      btn.className="dd-nav-item";
+      btn.textContent=s;
+      btn.onclick=()=>scrollDDToSection(s);
+      nav.appendChild(btn);
+    });
+  }
+}
+
+function scrollDDToSection(heading){
+  const anchor=heading.toLowerCase().replace(/[^a-z0-9]+/g,"-");
+  const el=document.getElementById("dd-sec-"+anchor);
+  if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
+  // update active nav item
+  document.querySelectorAll(".dd-nav-item").forEach(b=>{
+    b.classList.toggle("active",b.textContent===heading);
+  });
+}
+
+function updateDDProgressButtons(id){
+  const prog=S.ddProgress[id];
+  document.getElementById("dd-pbtn-read").className    ="dd-pbtn"+(prog==="read"?" p-read":"");
+  document.getElementById("dd-pbtn-review").className  ="dd-pbtn"+(prog==="review"?" p-review":"");
+  document.getElementById("dd-pbtn-mastered").className="dd-pbtn"+(prog==="mastered"?" p-mastered":"");
+}
+
+async function setDDProgress(val){
+  if(!DD_CURRENT) return;
+  const id=DD_CURRENT.id;
+  // toggle off if already set
+  const newVal=S.ddProgress[id]===val?null:val;
+  if(newVal) S.ddProgress[id]=newVal;
+  else delete S.ddProgress[id];
+
+  updateDDProgressButtons(id);
+  renderEntries(); // refresh progress badge in list
+
+  if(ROLE.current==="admin"){
+    // admin: persist to Firestore
+    if(newVal) dbPut("ddProgress",{id,progress:newVal}).catch(e=>console.warn("dd progress err",e));
+    else dbDel("ddProgress",id).catch(e=>console.warn("dd progress err",e));
+  } else {
+    // reader: localStorage
+    try{localStorage.setItem("snref_dd_progress",JSON.stringify(S.ddProgress));}catch(e){}
+  }
+}
 function closeOverlay(id){document.getElementById(id).classList.remove("show");}
 let toastTmr;
 function showToast(msg){
@@ -1911,8 +2143,10 @@ async function init(){
   // ratings — admin syncs from Firestore, readers use localStorage
   if(ROLE.current==="admin"){
     (await dbGetAll("ratings")).forEach(r=>{S.ratings[r.id]=r.rating;});
+    (await dbGetAll("ddProgress")).forEach(r=>{S.ddProgress[r.id]=r.progress;});
   } else {
     try{const r=localStorage.getItem("snref_ratings");if(r)Object.assign(S.ratings,JSON.parse(r));}catch(e){}
+    try{const d=localStorage.getItem("snref_dd_progress");if(d)Object.assign(S.ddProgress,JSON.parse(d));}catch(e){}
   }
 
   // config collections (small, always load)
